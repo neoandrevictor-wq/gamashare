@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P RING MASTER | SCIENCE EDITION</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg: #020617; --panel: #0f172a; --text: #f1f5f9;
+            --accent: #3b82f6; --debug: #eab308; --danger: #ef4444; --success: #22c55e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Consolas', monospace; }
+        body { background-color: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* HUD - TOP BAR */
+        header { height: 60px; background: var(--panel); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; border-bottom: 2px solid #334155; }
+        .hud-center { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; }
+        .hud-room { color: var(--accent); font-weight: bold; font-size: 18px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        .main { display: flex; flex: 1; overflow: hidden; }
+
+        /* Left side: Media & Chat */
+        .content-area { flex: 2.5; display: flex; flex-direction: column; border-right: 1px solid #334155; }
+        .video-grid { flex: 1; display: flex; flex-wrap: wrap; gap: 15px; padding: 15px; overflow-y: auto; background: #000; align-content: flex-start; }
+        .v-cap { position: relative; width: 300px; aspect-ratio: 16/9; background: #1e293b; border-radius: 8px; overflow: hidden; border: 2px solid #334155; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .v-cap video { width: 100%; height: 100%; object-fit: cover; }
+        .v-label { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); padding: 5px; font-size: 11px; display: flex; justify-content: space-between; }
+
+        .chat-wrap { height: 300px; display: flex; flex-direction: column; background: var(--panel); border-top: 2px solid #334155; }
+        #chat-msgs { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { background: #1e293b; padding: 10px; border-radius: 6px; border-left: 3px solid var(--accent); max-width: 90%; }
+        .msg b { color: var(--accent); }
+        .msg img { max-width: 300px; display: block; margin-top: 8px; border-radius: 4px; border: 1px solid #334155; }
+        .input-bar { padding: 15px; display: flex; gap: 10px; background: #0f172a; align-items: center; }
+        input[type="text"] { flex: 1; background: #020617; border: 1px solid #334155; color: white; padding: 12px; border-radius: 6px; outline: none; }
+
+        /* Right side: Deep Telemetry */
+        .telemetry { flex: 1.2; background: #020617; display: flex; flex-direction: column; min-width: 400px; }
+        .tel-header { padding: 12px; background: #1e293b; font-weight: bold; font-size: 12px; border-bottom: 1px solid #334155; letter-spacing: 1px; color: var(--debug); }
+        #tel-logs { flex: 1; overflow-y: auto; padding: 10px; font-size: 10px; display: flex; flex-direction: column; gap: 4px; }
+        .log { padding: 4px 8px; border-radius: 4px; background: #0f172a; border-left: 3px solid #475569; line-height: 1.4; }
+        .log.mqtt { border-color: #a855f7; }
+        .log.rtc { border-color: var(--success); }
+        .log.topo { border-color: var(--debug); }
+        .log.error { border-color: var(--danger); background: #450a0a; }
+
+        /* Controls */
+        .btn { padding: 10px 15px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; background: var(--accent); transition: 0.2s; }
+        .btn:hover { filter: brightness(1.2); }
+        .tag { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+
+        #setup { position: fixed; inset: 0; background: var(--bg); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+        .setup-card { background: var(--panel); padding: 40px; border-radius: 12px; border: 2px solid var(--accent); width: 400px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="setup">
+    <div class="setup-card">
+        <h1 style="color:var(--accent); margin-bottom:10px">P2P RING MASTER</h1>
+        <p style="font-size: 12px; color: #64748b; margin-bottom: 25px;">SISTEMA DISTRIBUÍDO CIÊNTIFICO</p>
+        <input type="text" id="nick" value="Peer_" placeholder="Apelido">
+        <input type="text" id="room" value="lab-network-01" placeholder="Nome da Sala">
+        <button class="btn" onclick="startNode()" style="width:100%; padding:15px">INICIALIZAR NÓ NA REDE</button>
+    </div>
+</div>
+
+<header>
+    <div>
+        <span class="tag" style="background:#334155">MY ID: <span id="my-id-display" style="color:var(--accent)">--</span></span>
+        <span id="role-display" class="tag" style="background:#334155; margin-left:5px">NODE</span>
+    </div>
+
+    <div class="hud-center">
+        <div style="font-size: 9px; color: #64748b; margin-bottom: 2px;">SALA ATIVA</div>
+        <div class="hud-room" id="hud-room-display">AGUARDANDO...</div>
+    </div>
+
+    <div>
+        <span id="ring-status" class="tag" style="background:var(--danger)">ANEL ABERTO</span>
+        <span id="ping-display" class="tag" style="background:#334155; margin-left:5px">-- ms</span>
+    </div>
+</header>
+
+<div class="main">
+    <div class="content-area">
+        <div class="video-grid" id="video-grid"></div>
+        <div class="chat-wrap">
+            <div id="chat-msgs"></div>
+            <div class="input-bar">
+                <input type="text" id="chat-in" placeholder="Digite uma mensagem ou cole uma imagem (CTRL+V)..." onkeypress="if(event.key==='Enter') sendChat()">
+                <button class="btn" onclick="sendChat()">ENVIAR</button>
+                <input type="file" id="file-in" style="display:none" onchange="handleFile(this)">
+                <button class="btn" style="background:#475569" onclick="document.getElementById('file-in').click()">📁</button>
+            </div>
+        </div>
+    </div>
+    
+    <aside class="telemetry">
+        <div class="tel-header">RASTREAMENTO TÉCNICO E TELEMETRIA</div>
+        <div id="tel-logs"></div>
+    </aside>
+</div>
+
+<script>
+/**
+ * 🛠 ARQUITETURA P2P CIÊNTIFICA - LOGIC V10
+ */
+
+const trace = (cat, msg, type = 'info') => {
+    const logs = document.getElementById('tel-logs');
+    const div = document.createElement('div');
+    div.className = `log ${cat} ${type === 'error' ? 'error' : ''}`;
+    div.innerHTML = `<span style="color:#64748b">${new Date().toLocaleTimeString()}</span> [${cat.toUpperCase()}] ${msg}`;
+    logs.prepend(div);
+};
+
+const STATE = {
+    id: 'n' + Math.random().toString(36).substr(2, 4),
+    name: '', room: '',
+    ring: [], // IDs ordenados
+    peers: {}, 
+    channels: {},
+    seenMessages: new Set(),
+    mqtt: null,
+    isSuper: false,
+    currentNext: null
+};
+
+const RTC_CONF = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+async function startNode() {
+    STATE.name = document.getElementById('nick').value + "_" + STATE.id;
+    STATE.room = document.getElementById('room').value;
+    
+    document.getElementById('hud-room-display').innerText = STATE.room;
+    document.getElementById('my-id-display').innerText = STATE.id;
+    document.getElementById('setup').style.display = 'none';
+
+    trace('topo', `Nó inicializado. ID: ${STATE.id} | Sala: ${STATE.room}`);
+
+    try {
+        STATE.localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+        addVideo(STATE.id, `${STATE.name} (Você)`, STATE.localStream);
+    } catch(e) { trace('rtc', 'Acesso à mídia negado ou indisponível.', 'error'); }
+
+    initSignaling();
+}
+
+function initSignaling() {
+    STATE.mqtt = mqtt.connect('wss://test.mosquitto.org:8081');
+    const base = `p2p_ring_master_v10_${STATE.room}`;
+
+    STATE.mqtt.on('connect', () => {
+        trace('mqtt', 'Sinalização conectada ao Broker Global.');
+        STATE.mqtt.subscribe(`${base}/announce`);
+        STATE.mqtt.subscribe(`${base}/direct/${STATE.id}`);
+        STATE.mqtt.publish(`${base}/announce`, JSON.stringify({type: 'JOIN', id: STATE.id}));
+    });
+
+    STATE.mqtt.on('message', (topic, payload) => {
+        const data = JSON.parse(payload.toString());
+        
+        if (topic.endsWith('/announce') && data.id !== STATE.id) {
+            handleNewPeer(data.id, base);
+        } else {
+            handleDirectMessage(data);
+        }
+    });
+}
+
+function handleNewPeer(newId, base) {
+    const all = [...new Set([...STATE.ring, STATE.id, newId])].sort();
+    STATE.ring = all;
+
+    if (STATE.id === all[0]) {
+        STATE.isSuper = true;
+        document.getElementById('role-display').innerText = "SUPER PEER";
+        document.getElementById('role-display').style.background = "var(--accent)";
+        
+        // Distribui o mapa para todos
+        STATE.ring.forEach(pid => {
+            STATE.mqtt.publish(`${base}/direct/${pid}`, JSON.stringify({type: 'MAP', ring: STATE.ring}));
+        });
+        trace('topo', `Eleito Coordenador. Novo Mapa de Anel: ${JSON.stringify(all)}`);
+    }
+    recalculateRing();
+}
+
+async function handleDirectMessage(data) {
+    if (data.type === 'MAP') {
+        trace('topo', `Mapa recebido: ${JSON.stringify(data.ring)}`);
+        STATE.ring = data.ring;
+        recalculateRing();
+    } else if (data.type === 'OFFER') {
+        trace('rtc', `OFFER recebida de ${data.from}.`);
+        await handleOffer(data);
+    } else if (data.type === 'ANSWER') {
+        trace('rtc', `ANSWER recebida de ${data.from}.`);
+        if (STATE.peers[data.from]) await STATE.peers[data.from].setRemoteDescription(new RTCSessionDescription(data.sdp));
+    } else if (data.type === 'ICE') {
+        if (STATE.peers[data.from]) await STATE.peers[data.from].addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e=>{});
+    }
+}
+
+function recalculateRing() {
+    const idx = STATE.ring.indexOf(STATE.id);
+    if (idx === -1 || STATE.ring.length < 2) return;
+
+    const nextId = STATE.ring[(idx + 1) % STATE.ring.length];
+    
+    // Se o próximo mudou, ou não temos conexão, iniciamos WebRTC
+    if (STATE.currentNext !== nextId) {
+        trace('topo', `Vizinho seguinte alterado para: ${nextId}.`);
+        STATE.currentNext = nextId;
+        
+        // Estratégia Polite Peer: O ID maior inicia a conexão
+        if (STATE.id > nextId) {
+            trace('rtc', `Iniciando handshake WebRTC com ${nextId}...`);
+            initWebRTC(nextId);
+        } else {
+            trace('rtc', `Aguardando oferta de ${nextId} (Polite Peer Mode).`);
+        }
+    }
+}
+
+async function initWebRTC(targetId) {
+    const pc = createPC(targetId);
+    const dc = pc.createDataChannel("ring-data");
+    setupDC(dc, targetId);
+
+    if (STATE.localStream) STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendSignal(targetId, {type: 'OFFER', sdp: offer});
+}
+
+async function handleOffer(data) {
+    const pc = createPC(data.from);
+    if (STATE.localStream) STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+    
+    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    sendSignal(data.from, {type: 'ANSWER', sdp: answer});
+}
+
+function createPC(peerId) {
+    if (STATE.peers[peerId]) STATE.peers[peerId].close();
+    
+    const pc = new RTCPeerConnection(RTC_CONF);
+    STATE.peers[peerId] = pc;
+
+    pc.onicecandidate = e => {
+        if (e.candidate) sendSignal(peerId, {type: 'ICE', candidate: e.candidate});
+    };
+
+    pc.ondatachannel = e => setupDC(e.channel, peerId);
+
+    pc.ontrack = e => {
+        trace('rtc', `Mídia P2P recebida do peer: ${peerId}`);
+        addVideo(peerId, `Peer: ${peerId}`, e.streams[0]);
+        
+        // RELAY PARA O PRÓXIMO NÓ
+        if (STATE.currentNext && STATE.currentNext !== peerId) {
+            const nextPC = STATE.peers[STATE.currentNext];
+            if (nextPC && nextPC.signalingState === 'stable') {
+                try { nextPC.addTrack(e.track, e.streams[0]); } catch(err) {}
+            }
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        trace('rtc', `Estado Conexão [${peerId}]: ${pc.connectionState}`);
+        if (pc.connectionState === 'connected') {
+            const st = document.getElementById('ring-status');
+            st.innerText = "ANEL CONECTADO";
+            st.style.background = "var(--success)";
+        } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            document.getElementById('ring-status').innerText = "ANEL ABERTO";
+            document.getElementById('ring-status').style.background = "var(--danger)";
+        }
+    };
+
+    return pc;
+}
+
+// --- DATA CHANNEL & MULTIMEDIA ---
+function setupDC(dc, peerId) {
+    STATE.channels[peerId] = dc;
+    dc.onmessage = e => {
+        const data = JSON.parse(e.data);
+        if (STATE.seenMessages.has(data.uid)) return;
+        STATE.seenMessages.add(data.uid);
+        
+        displayMsg(data);
+        
+        // Relay de Dados
+        if (STATE.currentNext && STATE.currentNext !== data.origin) {
+            const nextDc = STATE.channels[STATE.currentNext];
+            if (nextDc && nextDc.readyState === 'open') nextDc.send(JSON.stringify(data));
+        }
+    };
+}
+
+function broadcast(type, payload) {
+    const data = {
+        uid: Math.random().toString(36).substr(2, 9),
+        origin: STATE.id, sender: STATE.name, type: type, ...payload
+    };
+    STATE.seenMessages.add(data.uid);
+    displayMsg(data);
+    
+    if (STATE.currentNext) {
+        const dc = STATE.channels[STATE.currentNext];
+        if (dc && dc.readyState === 'open') dc.send(JSON.stringify(data));
+    }
+}
+
+// --- UI / HELPERS ---
+function sendChat() {
+    const el = document.getElementById('chat-in');
+    if (!el.value) return;
+    broadcast('chat', {text: el.value});
+    el.value = '';
+}
+
+function handlePaste(e) {
+    const items = e.clipboardData.items;
+    for (let item of items) {
+        if (item.type.indexOf("image") !== -1) {
+            const reader = new FileReader();
+            reader.onload = (evt) => broadcast('img', {data: evt.target.result});
+            reader.readAsDataURL(item.getAsFile());
+        }
+    }
+}
+
+function handleFile(input) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => broadcast('file', {data: e.target.result, name: file.name});
+    reader.readAsDataURL(file);
+}
+
+function displayMsg(msg) {
+    const area = document.getElementById('chat-msgs');
+    const div = document.createElement('div');
+    div.className = 'msg';
+    let content = `<b>${msg.sender}:</b> `;
+    if (msg.type === 'chat') content += `<span>${msg.text}</span>`;
+    if (msg.type === 'img') content += `<img src="${msg.data}">`;
+    if (msg.type === 'file') content += `<a href="${msg.data}" download="${msg.name}" style="color:var(--success)">📁 ${msg.name}</a>`;
+    div.innerHTML = content;
+    area.appendChild(div);
+    area.scrollTop = area.scrollHeight;
+}
+
+function addVideo(id, label, stream) {
+    if (document.getElementById(`v-${id}`)) return;
+    const grid = document.getElementById('video-grid');
+    const div = document.createElement('div');
+    div.id = `v-${id}`;
+    div.className = 'v-cap';
+    div.innerHTML = `<video autoplay playsinline></video><div class="v-label"><span>${label}</span><span class="ping-tag">P2P</span></div>`;
+    grid.appendChild(div);
+    div.querySelector('video').srcObject = stream;
+}
+
+function sendSignal(to, payload) {
+    payload.from = STATE.id;
+    const base = `p2p_ring_master_v10_${STATE.room}`;
+    STATE.mqtt.publish(`${base}/direct/${to}`, JSON.stringify(payload));
+}
+</script>
+</body>
+</html>
