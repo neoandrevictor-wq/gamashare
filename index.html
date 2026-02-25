@@ -1,725 +1,640 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>P2P RING MASTER | PROJETO EXPERIMENTAL</title>
-    <!-- Bibliotecas externas via CDN -->
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anarchy P2P - Rede Mesh Descentralizada</title>
     <style>
         :root {
-            --bg: #0d1117;
-            --panel: #161b22;
-            --text: #c9d1d9;
-            --accent: #58a6ff;
-            --success: #238636;
-            --danger: #f85149;
-            --warn: #d29922;
-            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --border-color: #333;
+            --primary: #bb86fc;
+            --danger: #cf6679;
+            --text: #e0e0e0;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            -webkit-tap-highlight-color: transparent;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            background: var(--bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
             color: var(--text);
             height: 100vh;
-            font-family: -apple-system, system-ui, sans-serif;
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
-        /* LEGAL MODAL (TOS) */
-        #tos-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.95);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+        /* Modals */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
         }
-
-        .tos-card {
-            background: var(--panel);
-            padding: 25px;
-            border-radius: 12px;
-            max-width: 500px;
-            border: 1px solid var(--accent);
-            max-height: 90vh;
-            overflow-y: auto;
-            text-align: center;
+        .modal-content {
+            background: var(--panel-bg); padding: 30px; border-radius: 8px;
+            border: 1px solid var(--border-color); width: 90%; max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-
-        .tos-text {
-            font-size: 13px;
-            color: #8b949e;
-            line-height: 1.6;
-            text-align: justify;
-            margin: 20px 0;
-            border-top: 1px solid #30363d;
-            padding-top: 15px;
+        .modal-content h2 { margin-bottom: 15px; color: var(--primary); }
+        .modal-content p { margin-bottom: 15px; font-size: 0.9em; line-height: 1.5; color: #aaa;}
+        input[type="text"] {
+            width: 100%; padding: 10px; margin-bottom: 15px;
+            background: #000; border: 1px solid var(--border-color); color: white;
+            border-radius: 4px; outline: none;
         }
-
-        /* SETUP SCREEN */
-        #setup-overlay {
-            position: fixed;
-            inset: 0;
-            background: var(--bg);
-            z-index: 9000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        button {
+            background: var(--primary); color: #000; border: none; padding: 10px 20px;
+            cursor: pointer; border-radius: 4px; font-weight: bold; width: 100%;
+            margin-bottom: 10px; transition: 0.2s;
         }
+        button:hover { opacity: 0.8; }
+        button.danger { background: var(--danger); }
 
-        .setup-card {
-            background: var(--panel);
-            padding: 30px;
-            border-radius: 12px;
-            border: 1px solid #30363d;
-            width: 95%;
-            max-width: 400px;
-            text-align: center;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            background: #010409;
-            border: 1px solid #30363d;
-            color: white;
-            border-radius: 6px;
-            outline: none;
-        }
-
-        /* HUD / HEADER */
+        /* App Layout */
+        #app { display: none; flex: 1; display: flex; flex-direction: column; height: 100%; }
         header {
-            height: 60px;
-            background: var(--panel);
-            border-bottom: 1px solid #30363d;
-            display: flex;
-            align-items: center;
-            padding: 0 15px;
-            justify-content: space-between;
-            flex-shrink: 0;
-            z-index: 100;
+            padding: 10px 20px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
         }
-
-        .room-title {
-            color: var(--accent);
-            font-weight: bold;
-            font-size: 14px;
-            text-transform: uppercase;
+        .room-info { font-size: 0.9em; color: #aaa; cursor: pointer; }
+        
+        main { display: flex; flex: 1; overflow: hidden; }
+        
+        /* Video Grid */
+        #video-container {
+            flex: 1; padding: 10px; display: grid; gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-auto-rows: minmax(150px, 1fr);
+            overflow-y: auto; align-content: start;
         }
-
-        .hud-tags {
-            display: flex;
-            gap: 5px;
+        .video-card {
+            position: relative; background: #000; border-radius: 8px; overflow: hidden;
+            border: 1px solid var(--border-color); aspect-ratio: 16/9; display: flex;
         }
-
-        .tag {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: bold;
-            background: #21262d;
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .peer-name {
+            position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.6);
+            padding: 4px 8px; border-radius: 4px; font-size: 0.8em;
         }
-
-        /* LAYOUT PRINCIPAL */
-        .app-container {
-            flex: 1;
-            display: flex;
-            flex-direction: row;
-            overflow: hidden;
+        .peer-controls {
+            position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;
+            opacity: 0; transition: opacity 0.3s;
         }
+        .video-card:hover .peer-controls { opacity: 1; }
+        .peer-controls button { padding: 4px; width: auto; font-size: 0.7em; margin: 0; }
+        .peer-controls input[type="range"] { width: 60px; }
 
-        @media (max-width: 850px) {
-            .app-container {
-                flex-direction: column;
-            }
+        /* Sidebar (Chat & Files) */
+        #sidebar {
+            width: 300px; background: var(--panel-bg); border-left: 1px solid var(--border-color);
+            display: flex; flex-direction: column;
         }
-
-        /* GRID DE VÍDEOS */
-        .video-grid {
-            flex: 1.5;
-            background: #000;
-            overflow-y: auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 10px;
-            padding: 10px;
-            align-content: flex-start;
+        #chat-history {
+            flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;
         }
-
-        @media (max-width: 600px) {
-            .video-grid {
-                flex: 1;
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .v-item {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 16/9;
-            background: #161b22;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid #30363d;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .v-item video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .v-label {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 5px 10px;
-            font-size: 10px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        /* CHAT E LOGS (INTEGRADOS) */
-        .chat-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: var(--panel);
-            border-left: 1px solid #30363d;
-            min-width: 350px;
-        }
-
-        @media (max-width: 850px) {
-            .chat-section {
-                flex: 1.5;
-                border-left: none;
-                border-top: 1px solid #30363d;
-            }
-        }
-
-        #chat-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .m-item {
-            font-size: 13px;
-            padding: 10px;
-            border-radius: 8px;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            max-width: 95%;
-            word-break: break-word;
-        }
-
-        .m-item.sys {
-            background: rgba(88, 166, 255, 0.05);
-            color: #58a6ff;
-            font-family: var(--font-mono);
-            font-size: 11px;
-            border-color: rgba(88, 166, 255, 0.2);
-            align-self: stretch;
-            max-width: 100%;
-        }
-
-        .m-item b {
-            color: var(--accent);
-        }
-
-        .m-item img {
-            max-width: 100%;
-            border-radius: 6px;
-            margin-top: 5px;
-            display: block;
-        }
-
-        /* ÁREA DE ENTRADA (MOBILE RESPONSIVE + 30PX LIFT) */
-        .input-controls {
-            padding: 15px 15px 45px 15px;
-            background: var(--panel);
-            border-top: 1px solid #30363d;
-        }
-
-        .btn-row {
-            display: flex;
-            gap: 6px;
-            margin-bottom: 12px;
-            overflow-x: auto;
-            padding-bottom: 5px;
-        }
-
-        .text-row {
-            display: flex;
-            gap: 8px;
-        }
-
-        .btn {
-            padding: 10px 14px;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            color: white;
-            background: #21262d;
-            border: 1px solid #30363d;
-            white-space: nowrap;
-        }
-
-        .btn-send {
-            background: var(--success);
-            border: none;
-            padding: 0 20px;
-        }
-
-        .btn:active {
-            transform: scale(0.96);
-        }
-
-        /* CRÉDITOS */
-        .credits {
-            font-size: 10px;
-            color: #484f58;
-            margin-top: 10px;
-            text-decoration: none;
-            display: block;
-        }
-
-        .credits:hover {
-            color: var(--accent);
-        }
-
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #30363d;
-            border-radius: 10px;
+        .message { font-size: 0.85em; background: #2a2a2a; padding: 8px; border-radius: 6px; word-break: break-word;}
+        .message strong { color: var(--primary); }
+        .message img { max-width: 100%; margin-top: 5px; border-radius: 4px; }
+        .system-msg { color: #888; font-style: italic; font-size: 0.8em; text-align: center; }
+        
+        #controls-panel { padding: 15px; border-top: 1px solid var(--border-color); }
+        #controls-panel div { display: flex; gap: 5px; margin-bottom: 10px;}
+        #chat-input { margin-bottom: 0; flex: 1; }
+        
+        @media (max-width: 768px) {
+            main { flex-direction: column; }
+            #sidebar { width: 100%; height: 300px; border-left: none; border-top: 1px solid var(--border-color); }
         }
     </style>
 </head>
-
 <body>
 
-    <!-- MODAL DE TERMOS (PROTEÇÃO LEGAL) -->
-    <div id="tos-modal">
-        <div class="tos-card">
-            <h2>AVISO DE RESPONSABILIDADE</h2>
-            <div class="tos-text">
-                Este sistema é uma ferramenta de comunicação P2P (Peer-to-Peer) descentralizada experimental.
-                Ao prosseguir, você reconhece que: <br><br>
-                1. <b>Sem Servidores:</b> Não há armazenamento central. Toda mídia (áudio, vídeo, arquivos) é
-                transmitida diretamente entre usuários.<br>
-                2. <b>Uso Ético:</b> Você se compromete a não utilizar esta rede para fins ilícitos, criminosos ou
-                assédio.<br>
-                3. <b>Isenção:</b> O desenvolvedor não possui meios de monitorar ou filtrar o tráfego e não se
-                responsabiliza por condutas de terceiros.<br>
-                4. <b>Conectividade:</b> Sua conexão P2P expõe seu IP aos participantes diretos do anel para viabilizar
-                o tráfego.
-            </div>
-            <button class="btn" style="background:var(--success); width:100%; padding:15px; border:none;"
-                onclick="acceptTos()">ACEITO OS TERMOS E CONDIÇÕES</button>
-            <a href="https://gamanext-ia.vercel.app" target="_blank" class="credits">Powered by
-                gamanext-ia.vercel.app</a>
+    <!-- Modal de Termos (Proteção Jurídica) -->
+    <div id="terms-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>⚠️ Termos de Utilização (Sistema Experimental)</h2>
+            <p>Este é um experimento científico e educacional de rede P2P distribuída. <strong>Nenhum servidor central de mídia ou armazenamento é utilizado.</strong> Todo o tráfego ocorre diretamente entre os navegadores dos participantes.</p>
+            <p>Ao prosseguir, você concorda que:</p>
+            <ul style="margin-left: 20px; font-size: 0.85em; color: #aaa; margin-bottom: 15px;">
+                <li>O autor do software não tem acesso, controle ou responsabilidade sobre o conteúdo transmitido.</li>
+                <li>Qualquer mídia, arquivo ou texto trafega sob criptografia nativa do WebRTC diretamente entre os nós.</li>
+                <li>O funcionamento pleno pode causar degradação técnica visual proposital para estabilizar a rede.</li>
+            </ul>
+            <button onclick="acceptTerms()">Aceito e Compreendo</button>
         </div>
     </div>
 
-    <!-- SETUP -->
-    <div id="setup-overlay" style="display:none">
-        <div class="setup-card">
-            <h2 style="color:var(--accent); margin-bottom:10px">CONFIGURAR NÓ</h2>
-            <input type="text" id="nick" placeholder="Seu Nickname" value="Peer_">
-            <input type="text" id="room" placeholder="ID da Sala (Ex: lab-01)" value="p2p-ring-room">
-            <button class="btn" style="background:var(--accent); width:100%; padding:15px; border:none;"
-                onclick="startProtocol()">INICIAR PROTOCOLO</button>
+    <!-- Modal de Entrada -->
+    <div id="join-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2>Entrar na Malha P2P</h2>
+            <input type="text" id="nickname" placeholder="Seu Apelido" required>
+            <input type="text" id="room-id" placeholder="ID da Sala (UUID)" required>
+            <button onclick="joinRoom()">Conectar</button>
+            <button class="danger" onclick="generateRoom()">Criar Nova Sala Segura</button>
         </div>
     </div>
 
-    <!-- HUD -->
-    <header>
-        <div class="room-title" id="hud-room">...</div>
-        <div class="hud-tags">
-            <span id="ring-status" class="tag" style="color:var(--danger)">RING: OPEN</span>
-            <span id="my-id" class="tag">ID: --</span>
-        </div>
-    </header>
-
-    <!-- MAIN -->
-    <div class="app-container">
-        <div class="video-grid" id="video-grid"></div>
-
-        <section class="chat-section">
-            <div id="chat-list">
-                <div class="m-item sys">[INFO] Sistema inicializado. Aguardando aceite dos termos.</div>
+    <!-- Interface Principal -->
+    <div id="app" style="display: none;">
+        <header>
+            <div>
+                <strong>Anarchy P2P Mesh</strong> | 
+                <span class="room-info" id="room-display" onclick="copyLink()"></span>
             </div>
+            <div>
+                <button class="danger" style="width: auto; padding: 5px 15px; margin: 0;" onclick="location.reload()">Desconectar</button>
+            </div>
+        </header>
 
-            <div class="input-controls">
-                <div class="btn-row">
-                    <button class="btn" onclick="toggleMute('audio')">MIC</button>
-                    <button class="btn" onclick="toggleMute('video')">CAM</button>
-                    <button class="btn" onclick="shareScreen()">TELA</button>
-                    <button class="btn" onclick="document.getElementById('file-in').click()">ARQUIVO</button>
-                    <input type="file" id="file-in" style="display:none" onchange="sendFile(this)">
+        <main>
+            <div id="video-container">
+                <!-- Vídeo Local -->
+                <div class="video-card" id="card-local">
+                    <video id="local-video" autoplay muted playsinline></video>
+                    <div class="peer-name">Você (<span id="local-nick-display"></span>)</div>
                 </div>
-                <div class="text-row">
-                    <input type="text" id="msg-input" placeholder="Mensagem ou Cole Imagem..."
-                        onkeypress="if(event.key==='Enter') sendChat()">
-                    <button class="btn btn-send" onclick="sendChat()">ENVIAR</button>
-                </div>
-                <a href="https://gamanext-ia.vercel.app" target="_blank" class="credits"
-                    style="text-align:center">gamanext-ia.vercel.app</a>
             </div>
-        </section>
+
+            <div id="sidebar">
+                <div id="chat-history"></div>
+                <div id="controls-panel">
+                    <div>
+                        <button onclick="toggleMic()" id="btn-mic">🎙️ Mutar</button>
+                        <button onclick="toggleCam()" id="btn-cam">📹 Esconder</button>
+                        <button onclick="shareScreen()" id="btn-screen">🖥️ Tela</button>
+                    </div>
+                    <div>
+                        <input type="text" id="chat-input" placeholder="Mensagem... (Cole imagens aqui)">
+                        <button style="width: auto; margin:0;" onclick="sendText()">Enviar</button>
+                    </div>
+                    <div style="margin-top: 5px;">
+                        <input type="file" id="file-input" style="display:none" onchange="sendFile(this)">
+                        <button onclick="document.getElementById('file-input').click()" style="background:#333; color:white;">📁 Enviar Arquivo</button>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <script>
-        /**
-         * ⚛️ ARQUITETURA P2P RING MASTER | V. FINAL SEM OMISSÕES
-         */
+<script>
+    // --- ESTADO GLOBAL ---
+    const myId = generateUUID();
+    let myNickname = "Anônimo";
+    let roomId = "";
+    let localStream = null;
+    let screenStream = null;
+    
+    // peers[peerId] = { connection, dataChannel, lastHeartbeat }
+    const peers = {}; 
+    const CHUNK_SIZE = 16384; // 16KB para envio de arquivos via DataChannel
 
-        const STATE = {
-            id: 'n' + Math.random().toString(36).substr(2, 4),
-            name: '', room: '',
-            ring: [], // IDs ordenados
-            peers: {}, channels: {},
-            seen: new Set(),
-            mqtt: null,
-            currentNext: null,
-            localStream: null,
-            isSuper: false
-        };
+    // Configuração WebRTC (Servidores Públicos Livres)
+    const webrtcConfig = {
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" }
+        ]
+    };
 
-        const RTC_CONF = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+    // --- SINALIZAÇÃO MOCK (Servidor Público WebSocket) ---
+    // Usamos um relay de teste público para o "bootstrap" da conexão P2P.
+    // Em produção real sem servidor, seria necessário enviar os SDPs manualmente.
+    const SIGNALING_SERVER = "wss://echo.websocket.events"; // Relay de echo público
+    let ws = null;
 
-        // --- GESTÃO DE ACESSO ---
-        function acceptTos() {
-            localStorage.setItem('p2p_science_tos', 'true');
-            document.getElementById('tos-modal').style.display = 'none';
-            document.getElementById('setup-overlay').style.display = 'flex';
+    // --- INICIALIZAÇÃO E UI ---
+    function generateUUID() {
+        return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+    }
+
+    function acceptTerms() {
+        document.getElementById('terms-modal').style.display = 'none';
+        document.getElementById('join-modal').style.display = 'flex';
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.has('sala')) {
+            document.getElementById('room-id').value = urlParams.get('sala');
         }
+    }
 
-        window.onload = () => {
-            if (localStorage.getItem('p2p_science_tos')) {
-                document.getElementById('tos-modal').style.display = 'none';
-                document.getElementById('setup-overlay').style.display = 'flex';
+    function generateRoom() {
+        document.getElementById('room-id').value = generateUUID();
+    }
+
+    function copyLink() {
+        const url = window.location.origin + window.location.pathname + "?sala=" + roomId;
+        navigator.clipboard.writeText(url);
+        alert("Link da sala copiado! Compartilhe com os peers.");
+    }
+
+    async function joinRoom() {
+        myNickname = document.getElementById('nickname').value || "Anônimo";
+        roomId = document.getElementById('room-id').value;
+        if(!roomId) return alert("Insira um UUID de sala válido.");
+
+        document.getElementById('join-modal').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        
+        document.getElementById('room-display').innerText = `Sala: ${roomId} (Clique p/ copiar link)`;
+        document.getElementById('local-nick-display').innerText = myNickname;
+        window.history.pushState({}, '', `?sala=${roomId}`);
+
+        await setupMedia();
+        connectSignaling();
+        
+        // Loop de degradação adaptativa e self-healing
+        setInterval(checkNetworkHealth, 5000);
+        setInterval(sendHeartbeat, 3000);
+    }
+
+    // --- MÍDIA E DEGRADAÇÃO PROGRESSIVA ---
+    async function setupMedia() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 640, height: 480, frameRate: 24 }, 
+                audio: true 
+            });
+            document.getElementById('local-video').srcObject = localStream;
+        } catch (e) {
+            console.error("Erro na mídia:", e);
+            alert("Não foi possível acessar a câmera/mic. Funcionando apenas via DataChannel.");
+            localStream = new MediaStream(); // Stream vazia para não quebrar RTCPeerConnection
+        }
+    }
+
+    async function adaptQuality() {
+        if(!localStream) return;
+        const videoTrack = localStream.getVideoTracks()[0];
+        if(!videoTrack) return;
+
+        const peerCount = Object.keys(peers).length;
+        try {
+            if (peerCount > 8) {
+                // Modo Degradação Severa
+                await videoTrack.applyConstraints({ width: 160, height: 120, frameRate: 10 });
+                addSystemMsg("Qualidade reduzida (Modo Mosaico) devido à alta densidade de rede.");
+            } else if (peerCount > 4) {
+                // Modo Degradação Leve
+                await videoTrack.applyConstraints({ width: 320, height: 240, frameRate: 15 });
+            } else {
+                // Modo Padrão
+                await videoTrack.applyConstraints({ width: 640, height: 480, frameRate: 24 });
             }
+        } catch(e) { console.log("Limitação do navegador ao aplicar degradação."); }
+    }
+
+    // --- SINALIZAÇÃO (BOOTSTRAP P2P) ---
+    function connectSignaling() {
+        ws = new WebSocket(SIGNALING_SERVER);
+        
+        ws.onopen = () => {
+            addSystemMsg("Conectado ao relay global de bootstrap. Buscando peers...");
+            // Anuncia entrada na sala
+            ws.send(JSON.stringify({ type: 'join', room: roomId, sender: myId }));
         };
 
-        async function startProtocol() {
-            STATE.name = document.getElementById('nick').value || 'Anon';
-            STATE.room = document.getElementById('room').value || 'default';
-            STATE.ring = [STATE.id];
-
-            document.getElementById('setup-overlay').style.display = 'none';
-            document.getElementById('hud-room').innerText = `ROOM: ${STATE.room}`;
-            document.getElementById('my-id').innerText = `ID: ${STATE.id}`;
-
+        ws.onmessage = async (event) => {
             try {
-                STATE.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                addVideo(STATE.id, `${STATE.name} (Você)`, STATE.localStream);
-            } catch (e) { logSys("Hardware de mídia não encontrado. Modo espectador."); }
+                const msg = JSON.parse(event.data);
+                // Filtra mensagens da própria sala e ignora as próprias
+                if (msg.room !== roomId || msg.sender === myId) return;
 
-            initSignaling(); // Corrigido: Chamada correta da função
-            setInterval(heartbeat, 10000); // Heartbeat periódico para manter anel vivo
-        }
-
-        // --- TELEMETRIA NO CHAT ---
-        function logSys(msg) {
-            const chat = document.getElementById('chat-list');
-            const div = document.createElement('div');
-            div.className = 'm-item sys';
-            div.innerHTML = `[P2P-LOG] ${msg}`;
-            chat.appendChild(div);
-            chat.scrollTop = chat.scrollHeight;
-        }
-
-        // --- SINALIZAÇÃO MQTT ---
-        function initSignaling() {
-            STATE.mqtt = mqtt.connect('wss://test.mosquitto.org:8081');
-            const base = `p2p_v_final_full_${STATE.room}`;
-
-            STATE.mqtt.on('connect', () => {
-                logSys("Conectado à infraestrutura global de sinalização.");
-                STATE.mqtt.subscribe(`${base}/announce`);
-                STATE.mqtt.subscribe(`${base}/direct/${STATE.id}`);
-                STATE.mqtt.publish(`${base}/announce`, JSON.stringify({ type: 'JOIN', id: STATE.id }));
-            });
-
-            STATE.mqtt.on('message', (topic, payload) => {
-                const data = JSON.parse(payload.toString());
-                if (topic.endsWith('/announce') && data.id !== STATE.id) {
-                    handleDiscovery(data.id, base);
-                } else {
-                    handleDirect(data);
+                if (msg.type === 'join') {
+                    // Novo peer entrou. Eu (que já estava aqui) crio a Oferta SDP.
+                    console.log("Novo peer detectado, iniciando conexão:", msg.sender);
+                    createPeerConnection(msg.sender, true);
+                } 
+                else if (msg.type === 'offer') {
+                    console.log("Oferta recebida de:", msg.sender);
+                    const pc = createPeerConnection(msg.sender, false);
+                    await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    ws.send(JSON.stringify({ type: 'answer', room: roomId, sender: myId, target: msg.sender, sdp: answer }));
+                } 
+                else if (msg.type === 'answer' && msg.target === myId) {
+                    console.log("Resposta recebida de:", msg.sender);
+                    const pc = peers[msg.sender].connection;
+                    await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                } 
+                else if (msg.type === 'ice-candidate' && msg.target === myId) {
+                    const pc = peers[msg.sender]?.connection;
+                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
                 }
-            });
-        }
-
-        function handleDiscovery(peerId, base) {
-            const all = [...new Set([...STATE.ring, STATE.id, peerId])].sort();
-            STATE.ring = all;
-
-            // Eleição de Super Peer (Menor ID alfabético)
-            if (STATE.id === all[0]) {
-                STATE.isSuper = true;
-                logSys("Assumindo papel de Coordenador (Super Peer).");
-                STATE.ring.forEach(pid => {
-                    STATE.mqtt.publish(`${base}/direct/${pid}`, JSON.stringify({ type: 'MAP', ring: STATE.ring }));
-                });
+            } catch (e) {
+                // Ignora mensagens de outras aplicações no echo server público
             }
-            recalculateNeighbors();
-        }
+        };
+    }
 
-        async function handleDirect(data) {
-            if (data.type === 'MAP') {
-                STATE.ring = data.ring;
-                recalculateNeighbors();
-            } else if (data.type === 'OFFER') {
-                logSys(`Handshake: Recebida oferta de ${data.from}`);
-                await handleOffer(data);
-            } else if (data.type === 'ANSWER') {
-                const pc = STATE.peers[data.from];
-                if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-            } else if (data.type === 'ICE') {
-                const pc = STATE.peers[data.from];
-                if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => { });
-            }
-        }
+    // --- LÓGICA WEBRTC MESH ---
+    function createPeerConnection(peerId, isInitiator) {
+        if (peers[peerId]) return peers[peerId].connection;
 
-        // --- TOPOLOGIA EM ANEL COM POLITE PEER E BYPASS ---
-        function recalculateNeighbors() {
-            const idx = STATE.ring.indexOf(STATE.id);
-            if (idx === -1 || STATE.ring.length < 2) return;
+        const pc = new RTCPeerConnection(webrtcConfig);
+        peers[peerId] = { connection: pc, dataChannel: null, lastHeartbeat: Date.now() };
 
-            const nextId = STATE.ring[(idx + 1) % STATE.ring.length];
+        // Adiciona mídia local à conexão
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-            if (STATE.currentNext !== nextId) {
-                logSys(`Anel: Novo vizinho detectado -> ${nextId}`);
-                STATE.currentNext = nextId;
-                // Polite Peer: O ID maior inicia o handshake para evitar colisão de SDP
-                if (STATE.id > nextId) initWebRTC(nextId);
-            }
-        }
-
-        async function initWebRTC(targetId) {
-            const pc = createPC(targetId);
-            const dc = pc.createDataChannel("ring-data");
-            setupDC(dc, targetId);
-
-            if (STATE.localStream) {
-                STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
-            }
-
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            sendSignal(targetId, { type: 'OFFER', sdp: offer });
-        }
-
-        async function handleOffer(data) {
-            const pc = createPC(data.from);
-            if (STATE.localStream) {
-                STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
-            }
-            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            sendSignal(data.from, { type: 'ANSWER', sdp: answer });
-        }
-
-        function createPC(peerId) {
-            if (STATE.peers[peerId]) STATE.peers[peerId].close();
-            const pc = new RTCPeerConnection(RTC_CONF);
-            STATE.peers[peerId] = pc;
-
-            pc.onicecandidate = e => { if (e.candidate) sendSignal(peerId, { type: 'ICE', candidate: e.candidate }); };
-            pc.ondatachannel = e => setupDC(e.channel, peerId);
-
-            pc.ontrack = e => {
-                addVideo(peerId, `Peer: ${peerId}`, e.streams[0]);
-                // RELAY DE MÍDIA PEER-TO-PEER (O anel repassa a mídia)
-                if (STATE.currentNext && STATE.currentNext !== peerId) {
-                    const nextPC = STATE.peers[STATE.currentNext];
-                    if (nextPC && nextPC.signalingState === 'stable') {
-                        try {
-                            nextPC.addTrack(e.track, e.streams[0]);
-                            applyAdaptiveQuality(nextPC);
-                        } catch (err) { }
-                    }
-                }
-            };
-
-            pc.onconnectionstatechange = () => {
-                const tag = document.getElementById('ring-status');
-                if (pc.connectionState === 'connected') {
-                    tag.innerText = "RING: CLOSED"; tag.style.color = "var(--success)";
-                } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-                    tag.innerText = "RING: OPEN"; tag.style.color = "var(--danger)";
-                    healRing(peerId);
-                }
-            };
-            return pc;
-        }
-
-        // --- DATA CHANNEL / RELAY DE DADOS ---
-        function setupDC(dc, peerId) {
-            STATE.channels[peerId] = dc;
-            dc.onmessage = e => {
-                const data = JSON.parse(e.data);
-                if (STATE.seen.has(data.uid)) return;
-                STATE.seen.add(data.uid);
-                appendMsg(data);
-                relayData(data); // Relay P2P de dados
-            };
-        }
-
-        function relayData(data) {
-            if (STATE.currentNext) {
-                const dc = STATE.channels[STATE.currentNext];
-                if (dc && dc.readyState === 'open') dc.send(JSON.stringify(data));
-            }
-        }
-
-        function broadcast(type, payload) {
-            const data = { uid: Math.random().toString(36).substr(2, 9), origin: STATE.id, sender: STATE.name, type: type, ...payload };
-            STATE.seen.add(data.uid);
-            appendMsg(data);
-            relayData(data);
-        }
-
-        // --- MULTIMÍDIA E UI ---
-        function sendChat() {
-            const el = document.getElementById('msg-input');
-            if (!el.value) return;
-            broadcast('chat', { text: el.value });
-            el.value = '';
-        }
-
-        document.getElementById('msg-input').onpaste = (e) => {
-            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-            for (let item of items) {
-                if (item.type.indexOf("image") !== -1) {
-                    const reader = new FileReader();
-                    reader.onload = (evt) => broadcast('img', { data: evt.target.result });
-                    reader.readAsDataURL(item.getAsFile());
-                }
+        // ICE Candidates gerados localmente são enviados via WebSocket
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                ws.send(JSON.stringify({ type: 'ice-candidate', room: roomId, sender: myId, target: peerId, candidate: event.candidate }));
             }
         };
 
-        function sendFile(input) {
-            const file = input.files[0];
-            if (!file) return;
-            if (file.size > 3 * 1024 * 1024) return alert("Limite de 3MB para protótipo P2P.");
-            const reader = new FileReader();
-            reader.onload = (e) => broadcast('file', { data: e.target.result, name: file.name });
-            reader.readAsDataURL(file);
+        // Recebendo vídeo do peer
+        pc.ontrack = (event) => {
+            if (!document.getElementById(`video-${peerId}`)) {
+                createVideoCard(peerId);
+            }
+            document.getElementById(`video-${peerId}`).srcObject = event.streams[0];
+            adaptQuality(); // Ajusta qualidade devido a novo participante
+        };
+
+        // Data Channels (Texto, Controle e Arquivos)
+        if (isInitiator) {
+            const dc = pc.createDataChannel('anarchy-data');
+            setupDataChannel(dc, peerId);
+        } else {
+            pc.ondatachannel = (event) => setupDataChannel(event.channel, peerId);
         }
 
-        function appendMsg(msg) {
-            const area = document.getElementById('chat-list');
-            const div = document.createElement('div');
-            div.className = 'm-item';
-            let content = `<b>${msg.sender}:</b> `;
-            if (msg.type === 'chat') content += `<span>${msg.text}</span>`;
-            if (msg.type === 'img') content += `<img src="${msg.data}">`;
-            if (msg.type === 'file') content += `<br><a href="${msg.data}" download="${msg.name}" style="color:var(--success); font-weight:bold;">📁 Baixar: ${msg.name}</a>`;
-            area.appendChild(div);
-            div.innerHTML = content;
-            area.scrollTop = area.scrollHeight;
-        }
-
-        function addVideo(id, label, stream) {
-            if (document.getElementById(`v-${id}`)) return;
-            const grid = document.getElementById('video-grid');
-            const div = document.createElement('div');
-            div.id = `v-${id}`; div.className = 'v-item';
-            div.innerHTML = `<video autoplay playsinline></video><div class="v-label">${label}</div>`;
-            grid.appendChild(div);
-            div.querySelector('video').srcObject = stream;
-        }
-
-        // --- QUALIDADE ADAPTATIVA (PROGRESSIVA) ---
-        function applyAdaptiveQuality(pc) {
-            const members = STATE.ring.length;
-            let targetFPS = 30;
-            let scale = 1;
-
-            if (members > 3) { targetFPS = 15; scale = 2; }
-            if (members > 6) { targetFPS = 5; scale = 4; }
-
-            pc.getSenders().forEach(s => {
-                if (s.track && s.track.kind === 'video') {
-                    const p = s.getParameters();
-                    if (!p.encodings) p.encodings = [{}];
-                    p.encodings[0].maxFramerate = targetFPS;
-                    p.encodings[0].scaleResolutionDownBy = scale;
-                    s.setParameters(p).catch(() => { });
-                }
+        // Se for o iniciador, cria a Oferta SDP
+        if (isInitiator) {
+            pc.createOffer().then(offer => {
+                pc.setLocalDescription(offer);
+                ws.send(JSON.stringify({ type: 'offer', room: roomId, sender: myId, target: peerId, sdp: offer }));
             });
         }
 
-        function healRing(failedId) {
-            STATE.ring = STATE.ring.filter(id => id !== failedId);
-            const v = document.getElementById(`v-${failedId}`);
-            if (v) v.remove();
-            recalculateNeighbors();
-            logSys(`Self-Healing: Nó ${failedId} removido. Reconfigurando anel...`);
-        }
+        return pc;
+    }
 
-        function heartbeat() {
-            if (STATE.mqtt) STATE.mqtt.publish(`p2p_v_final_full_${STATE.room}/announce`, JSON.stringify({ type: 'JOIN', id: STATE.id }));
+    function removePeer(peerId) {
+        if (peers[peerId]) {
+            peers[peerId].connection.close();
+            delete peers[peerId];
         }
+        const card = document.getElementById(`card-${peerId}`);
+        if (card) card.remove();
+        addSystemMsg(`Um peer saiu ou perdeu conexão.`);
+        adaptQuality();
+    }
 
-        function sendSignal(to, payload) {
-            payload.from = STATE.id;
-            STATE.mqtt.publish(`p2p_v_final_full_${STATE.room}/direct/${to}`, JSON.stringify(payload));
-        }
+    // --- DATA CHANNELS (O CORAÇÃO DO SISTEMA) ---
+    function setupDataChannel(dc, peerId) {
+        peers[peerId].dataChannel = dc;
+        dc.binaryType = 'arraybuffer';
 
-        function toggleMute(type) {
-            if (!STATE.localStream) return;
-            const t = type === 'audio' ? STATE.localStream.getAudioTracks()[0] : STATE.localStream.getVideoTracks()[0];
-            if (t) t.enabled = !t.enabled;
-        }
+        let incomingFileInfo = null;
+        let incomingFileData = [];
 
-        async function shareScreen() {
+        dc.onmessage = (event) => {
+            peers[peerId].lastHeartbeat = Date.now();
+
+            // Tratamento de Arquivos em ArrayBuffer
+            if (event.data instanceof ArrayBuffer) {
+                incomingFileData.push(event.data);
+                return;
+            }
+
+            // Tratamento de Texto JSON
             try {
-                const s = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                const t = s.getVideoTracks()[0];
-                Object.values(STATE.peers).forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-                    if (sender) sender.replaceTrack(t);
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'heartbeat') return; // Apenas atualiza o timestamp acima
+                
+                if (data.type === 'chat') {
+                    appendMessage(data.nickname, data.text);
+                } 
+                else if (data.type === 'image') {
+                    appendImage(data.nickname, data.base64);
+                }
+                else if (data.type === 'control') {
+                    handleAnarchyControl(data);
+                }
+                else if (data.type === 'file_start') {
+                    incomingFileInfo = data;
+                    incomingFileData = [];
+                }
+                else if (data.type === 'file_end') {
+                    const blob = new Blob(incomingFileData);
+                    appendFileLink(incomingFileInfo.sender, incomingFileInfo.name, blob);
+                    incomingFileInfo = null;
+                    incomingFileData = [];
+                }
+            } catch (e) { console.error("Erro parse DataChannel:", e); }
+        };
+    }
+
+    function broadcastData(messageObj) {
+        const msgStr = JSON.stringify(messageObj);
+        Object.values(peers).forEach(p => {
+            if (p.dataChannel && p.dataChannel.readyState === 'open') {
+                p.dataChannel.send(msgStr);
+            }
+        });
+    }
+
+    // --- TOLERÂNCIA A FALHAS ---
+    function sendHeartbeat() {
+        broadcastData({ type: 'heartbeat' });
+    }
+
+    function checkNetworkHealth() {
+        const now = Date.now();
+        for (const peerId in peers) {
+            if (now - peers[peerId].lastHeartbeat > 15000) {
+                console.warn(`Timeout detectado para ${peerId}. Expurgando nó.`);
+                removePeer(peerId);
+            }
+        }
+    }
+
+    // --- INTERFACE E CONTROLES ANÁRQUICOS ---
+    function createVideoCard(peerId) {
+        const div = document.createElement('div');
+        div.className = 'video-card';
+        div.id = `card-${peerId}`;
+        
+        div.innerHTML = `
+            <video id="video-${peerId}" autoplay playsinline></video>
+            <div class="peer-name">Peer Anônimo</div>
+            <div class="peer-controls">
+                <input type="range" min="0" max="1" step="0.1" value="1" onchange="document.getElementById('video-${peerId}').volume = this.value" title="Volume Local">
+                <button onclick="sendAnarchyCommand('${peerId}', 'mute')" title="Forçar Mute">🔇</button>
+                <button onclick="sendAnarchyCommand('${peerId}', 'hide')" title="Forçar Câmera Off">🚫</button>
+            </div>
+        `;
+        document.getElementById('video-container').appendChild(div);
+    }
+
+    function sendAnarchyCommand(targetId, action) {
+        // Envia ordem de execução pela rede. O alvo obedece se receber.
+        broadcastData({ type: 'control', target: targetId, action: action, senderNick: myNickname });
+        addSystemMsg(`Você emitiu uma ordem global para o peer alvo.`);
+    }
+
+    function handleAnarchyControl(data) {
+        if (data.target === myId || data.target === 'all') {
+            if (data.action === 'mute') {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) audioTrack.enabled = false;
+                addSystemMsg(`🚨 O ditador ${data.senderNick} mutou o seu microfone.`);
+            } 
+            else if (data.action === 'hide') {
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) videoTrack.enabled = false;
+                addSystemMsg(`🚨 O ditador ${data.senderNick} desligou sua câmera.`);
+            }
+        }
+    }
+
+    function toggleMic() {
+        const track = localStream.getAudioTracks()[0];
+        if(track) {
+            track.enabled = !track.enabled;
+            document.getElementById('btn-mic').innerText = track.enabled ? "🎙️ Mutar" : "🎙️ Desmutar";
+        }
+    }
+
+    function toggleCam() {
+        const track = localStream.getVideoTracks()[0];
+        if(track) {
+            track.enabled = !track.enabled;
+            document.getElementById('btn-cam').innerText = track.enabled ? "📹 Esconder" : "📹 Mostrar";
+        }
+    }
+
+    async function shareScreen() {
+        try {
+            if(!screenStream) {
+                screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const screenTrack = screenStream.getVideoTracks()[0];
+                
+                // Substitui a track em todas as conexões
+                Object.values(peers).forEach(p => {
+                    const sender = p.connection.getSenders().find(s => s.track.kind === 'video');
+                    if(sender) sender.replaceTrack(screenTrack);
                 });
-                t.onended = () => {
-                    const cam = STATE.localStream.getVideoTracks()[0];
-                    Object.values(STATE.peers).forEach(pc => {
-                        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-                        if (sender) sender.replaceTrack(cam);
-                    });
+                
+                document.getElementById('local-video').srcObject = screenStream;
+                document.getElementById('btn-screen').innerText = "🖥️ Parar Tela";
+
+                screenTrack.onended = () => stopScreenShare();
+            } else {
+                stopScreenShare();
+            }
+        } catch(e) { console.error("Erro no compartilhamento de tela:", e); }
+    }
+
+    function stopScreenShare() {
+        screenStream.getTracks().forEach(t => t.stop());
+        screenStream = null;
+        const videoTrack = localStream.getVideoTracks()[0];
+        
+        Object.values(peers).forEach(p => {
+            const sender = p.connection.getSenders().find(s => s.track.kind === 'video');
+            if(sender) sender.replaceTrack(videoTrack);
+        });
+        
+        document.getElementById('local-video').srcObject = localStream;
+        document.getElementById('btn-screen').innerText = "🖥️ Tela";
+    }
+
+    // --- CHAT, IMAGENS E ARQUIVOS ---
+    function appendMessage(nick, text) {
+        const history = document.getElementById('chat-history');
+        history.innerHTML += `<div class="message"><strong>${nick}:</strong> ${text}</div>`;
+        history.scrollTop = history.scrollHeight;
+    }
+
+    function appendImage(nick, base64) {
+        const history = document.getElementById('chat-history');
+        history.innerHTML += `<div class="message"><strong>${nick} enviou imagem:</strong><br><img src="${base64}"></div>`;
+        history.scrollTop = history.scrollHeight;
+    }
+
+    function appendFileLink(nick, filename, blob) {
+        const url = URL.createObjectURL(blob);
+        const history = document.getElementById('chat-history');
+        history.innerHTML += `<div class="message"><strong>${nick} enviou arquivo:</strong><br><a href="${url}" download="${filename}" style="color:var(--primary)">💾 Baixar ${filename}</a></div>`;
+        history.scrollTop = history.scrollHeight;
+    }
+
+    function addSystemMsg(text) {
+        const history = document.getElementById('chat-history');
+        history.innerHTML += `<div class="system-msg">${text}</div>`;
+        history.scrollTop = history.scrollHeight;
+    }
+
+    function sendText() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if(text) {
+            appendMessage("Você", text);
+            broadcastData({ type: 'chat', nickname: myNickname, text: text });
+            input.value = '';
+        }
+    }
+
+    // Evento de colar imagem no chat
+    document.getElementById('chat-input').addEventListener('paste', function(e) {
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const base64 = event.target.result;
+                    appendImage("Você", base64);
+                    broadcastData({ type: 'image', nickname: myNickname, base64: base64 });
                 };
-            } catch (e) { logSys("Erro ao capturar tela."); }
+                reader.readAsDataURL(blob);
+            }
         }
-    </script>
-</body>
+    });
 
+    // Evento de Envio de Arquivo (Chunked via DataChannel)
+    async function sendFile(input) {
+        const file = input.files[0];
+        if(!file) return;
+
+        addSystemMsg(`Enviando arquivo: ${file.name}...`);
+        broadcastData({ type: 'file_start', sender: myNickname, name: file.name, size: file.size });
+
+        const buffer = await file.arrayBuffer();
+        let offset = 0;
+
+        // Loop de envio de chunks
+        while (offset < buffer.byteLength) {
+            const chunk = buffer.slice(offset, offset + CHUNK_SIZE);
+            Object.values(peers).forEach(p => {
+                if (p.dataChannel && p.dataChannel.readyState === 'open') {
+                    p.dataChannel.send(chunk);
+                }
+            });
+            offset += CHUNK_SIZE;
+            // Pequeno delay para não encher o buffer do WebRTC
+            await new Promise(r => setTimeout(r, 10)); 
+        }
+
+        broadcastData({ type: 'file_end', sender: myNickname });
+        addSystemMsg(`Arquivo enviado com sucesso.`);
+        input.value = '';
+    }
+
+    // Suporte ao "Enter" no chat
+    document.getElementById('chat-input').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') sendText();
+    });
+
+</script>
+</body>
 </html>
