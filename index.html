@@ -1,732 +1,866 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gama Share - P2P Descentralizado</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gama Share - Mesh P2P</title>
+    <!-- Importação do motor de rede PeerJS (A mesma versão estável usada no jogo) -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
-            --bg-color: #0d0d0d;
-            --panel-bg: #1a1a1a;
-            --border-color: #2a2a2a;
-            --primary: #00ff88;
-            --primary-hover: #00cc6a;
-            --danger: #ff4757;
-            --danger-hover: #ff2e43;
-            --text: #f1f1f1;
+            --bg-dark: #0a0a0a;
+            --panel-bg: #141414;
+            --border-color: #222;
+            --gama-green: #00ff88;
+            --gama-dark: #00cc6a;
+            --danger: #ff3333;
+            --text-main: #f0f0f0;
             --text-muted: #888;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text);
+            background-color: var(--bg-dark);
+            color: var(--text-main);
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
-        /* Modals e Overlays */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-            display: flex; justify-content: center; align-items: center;
+        /* Overlays / Modais */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
             z-index: 1000;
         }
-        .modal-content {
-            background: var(--panel-bg); padding: 40px; border-radius: 12px;
-            border: 1px solid var(--border-color); width: 90%; max-width: 450px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.7); text-align: center;
-        }
-        .modal-content h2 { margin-bottom: 10px; color: var(--primary); font-size: 1.8em; }
-        .modal-content h3 { margin-bottom: 20px; color: var(--text); font-weight: normal; font-size: 1.1em; }
-        .modal-content p { margin-bottom: 20px; font-size: 0.9em; line-height: 1.6; color: var(--text-muted); text-align: left; }
-        
-        input[type="text"] {
-            width: 100%; padding: 12px 15px; margin-bottom: 20px;
-            background: #000; border: 1px solid var(--border-color); color: white;
-            border-radius: 6px; outline: none; font-size: 1em; transition: border 0.3s;
-        }
-        input[type="text"]:focus { border-color: var(--primary); }
-        
-        button {
-            background: var(--primary); color: #000; border: none; padding: 12px 20px;
-            cursor: pointer; border-radius: 6px; font-weight: bold; width: 100%;
-            font-size: 1em; transition: all 0.2s;
-        }
-        button:hover { background: var(--primary-hover); transform: translateY(-1px); }
-        button.danger { background: var(--danger); color: white; }
-        button.danger:hover { background: var(--danger-hover); }
 
-        .readonly-room {
-            background: #000; padding: 10px; border-radius: 6px; color: var(--primary);
-            font-family: monospace; font-size: 0.9em; margin-bottom: 20px; word-break: break-all;
-        }
-
-        /* Layout Principal */
-        #app { display: none; flex: 1; flex-direction: column; height: 100%; }
-        header {
-            padding: 15px 20px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .brand { font-size: 1.2em; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 10px;}
-        .room-info { 
-            font-size: 0.85em; color: var(--text-muted); background: #000; 
-            padding: 6px 12px; border-radius: 20px; cursor: pointer; transition: 0.3s;
+        .modal {
+            background: var(--panel-bg);
             border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.1);
         }
-        .room-info:hover { color: var(--text); border-color: var(--primary); }
-        
-        main { display: flex; flex: 1; overflow: hidden; }
-        
-        /* Grid de Vídeos */
-        #video-container {
-            flex: 1; padding: 15px; display: grid; gap: 15px;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            grid-auto-rows: minmax(180px, 1fr);
-            overflow-y: auto; align-content: start;
+
+        .modal h2 {
+            color: var(--gama-green);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-        .video-card {
-            position: relative; background: #000; border-radius: 10px; overflow: hidden;
-            border: 1px solid var(--border-color); aspect-ratio: 16/9; display: flex;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+
+        .modal p {
+            color: var(--text-muted);
+            font-size: 0.9em;
+            line-height: 1.5;
+            margin-bottom: 20px;
         }
-        video { width: 100%; height: 100%; object-fit: cover; background: #050505; }
-        .peer-name {
-            position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7);
-            padding: 4px 10px; border-radius: 6px; font-size: 0.85em; backdrop-filter: blur(4px);
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: #000;
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            outline: none;
         }
-        
-        /* Controles Anárquicos (Aparecem no hover) */
-        .peer-controls {
-            position: absolute; top: 10px; right: 10px; display: flex; gap: 8px;
-            opacity: 0; transition: opacity 0.3s; background: rgba(0,0,0,0.6);
-            padding: 6px; border-radius: 8px; backdrop-filter: blur(4px);
+
+        input[type="text"]:focus {
+            border-color: var(--gama-green);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            color: var(--gama-green);
+            border: 1px solid var(--gama-green);
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: var(--gama-green);
+            color: #000;
+        }
+
+        button.btn-danger {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        button.btn-danger:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .readonly-id {
+            background: #000;
+            padding: 10px;
+            border-radius: 6px;
+            color: var(--gama-green);
+            font-family: monospace;
+            font-size: 0.85em;
+            margin-bottom: 15px;
+            word-break: break-all;
+            border: 1px dashed #333;
+        }
+
+        /* App Layout */
+        #app {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        header {
+            padding: 15px 20px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
             align-items: center;
         }
-        .video-card:hover .peer-controls { opacity: 1; }
-        .peer-controls button { 
-            padding: 6px; width: auto; font-size: 1em; margin: 0; background: transparent; 
-            color: white; border-radius: 4px; border: 1px solid transparent;
-        }
-        .peer-controls button:hover { background: rgba(255,255,255,0.2); }
-        .peer-controls input[type="range"] { 
-            width: 60px; accent-color: var(--primary); cursor: pointer;
+
+        .brand {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--gama-green);
         }
 
-        /* Sidebar (Chat e Arquivos) */
+        .room-badge {
+            background: #000;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            border: 1px solid #333;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .room-badge:hover {
+            border-color: var(--gama-green);
+        }
+
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Grid de Vídeo */
+        #video-grid {
+            flex: 1;
+            padding: 15px;
+            display: grid;
+            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-auto-rows: minmax(200px, 1fr);
+            overflow-y: auto;
+            align-content: start;
+        }
+
+        .video-card {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            display: flex;
+            aspect-ratio: 16/9;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #050505;
+        }
+
+        .peer-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Controles Anárquicos (Aparecem no Hover) */
+        .anarchy-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px;
+            border-radius: 6px;
+            align-items: center;
+        }
+
+        .video-card:hover .anarchy-controls {
+            opacity: 1;
+        }
+
+        .anarchy-controls button {
+            width: auto;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            margin: 0;
+            background: transparent;
+            color: white;
+            border: none;
+        }
+
+        .anarchy-controls button:hover {
+            color: var(--danger);
+            background: transparent;
+        }
+
+        .anarchy-controls input[type="range"] {
+            width: 60px;
+            accent-color: var(--gama-green);
+            cursor: pointer;
+        }
+
+        /* Sidebar (Chat / Arquivos) */
         #sidebar {
-            width: 320px; background: var(--panel-bg); border-left: 1px solid var(--border-color);
-            display: flex; flex-direction: column;
+            width: 320px;
+            background: var(--panel-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
         }
+
         #chat-history {
-            flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 12px;
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        .message { font-size: 0.9em; background: #222; padding: 10px; border-radius: 8px; word-break: break-word;}
-        .message strong { color: var(--primary); display: block; margin-bottom: 3px; font-size: 0.9em;}
-        .message img { max-width: 100%; margin-top: 8px; border-radius: 6px; border: 1px solid #333; }
-        .system-msg { color: var(--text-muted); font-style: italic; font-size: 0.8em; text-align: center; }
-        .file-link { color: var(--primary); text-decoration: none; font-weight: bold; display: block; margin-top: 5px;}
-        .file-link:hover { text-decoration: underline; }
-        
-        #controls-panel { padding: 15px; background: #111; border-top: 1px solid var(--border-color); }
-        .my-controls { display: flex; gap: 8px; margin-bottom: 12px;}
-        .my-controls button { padding: 8px; font-size: 0.85em; flex: 1; margin: 0; background: #333; color: white;}
-        .my-controls button:hover { background: #444; }
-        .my-controls button.active { background: var(--primary); color: #000; }
-        
-        .chat-input-area { display: flex; gap: 8px; margin-bottom: 10px;}
-        #chat-input { margin-bottom: 0; flex: 1; font-size: 0.9em; padding: 10px; border-radius: 20px;}
-        .chat-input-area button { width: auto; margin:0; padding: 0 15px; border-radius: 20px;}
-        
-        .file-btn { background: #222; border: 1px dashed var(--border-color); color: var(--text-muted); font-size: 0.85em;}
-        .file-btn:hover { background: #2a2a2a; border-color: var(--primary); color: var(--text);}
+
+        .msg {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            word-break: break-word;
+        }
+
+        .msg strong {
+            color: var(--gama-green);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .msg img {
+            max-width: 100%;
+            border-radius: 4px;
+            margin-top: 5px;
+            border: 1px solid #333;
+        }
+
+        .sys-msg {
+            color: var(--text-muted);
+            font-size: 0.75em;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .file-link {
+            color: var(--gama-green);
+            text-decoration: none;
+            display: block;
+            margin-top: 5px;
+            font-weight: bold;
+        }
+
+        #controls-panel {
+            padding: 15px;
+            background: #0d0d0d;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .my-tools {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .my-tools button {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.8em;
+        }
+
+        .my-tools button.active {
+            background: var(--gama-green);
+            color: #000;
+        }
+
+        .chat-input-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .chat-input-box input {
+            margin: 0;
+            flex: 1;
+        }
+
+        .chat-input-box button {
+            width: auto;
+            padding: 0 15px;
+        }
 
         @media (max-width: 768px) {
-            main { flex-direction: column; }
-            #sidebar { width: 100%; height: 350px; border-left: none; border-top: 1px solid var(--border-color); }
+            main {
+                flex-direction: column;
+            }
+
+            #sidebar {
+                width: 100%;
+                height: 350px;
+                border-left: none;
+                border-top: 1px solid var(--border-color);
+            }
         }
     </style>
 </head>
+
 <body>
 
-    <!-- Modal de Termos -->
-    <div id="terms-modal" class="modal-overlay">
-        <div class="modal-content">
-            <h2>Gama Share</h2>
-            <h3>Termos de Utilização</h3>
-            <p>Este é um artefato de software experimental e educacional de rede P2P Mesh descentralizada.</p>
-            <p><strong>Não existem servidores centrais.</strong> Câmera, microfone, arquivos e textos trafegam diretamente entre os dispositivos conectados usando WebRTC. A página funciona localmente e não armazena nenhum dado.</p>
-            <p>Ao prosseguir, você compreende que o autor não possui controle, acesso ou responsabilidade legal sobre o uso da ferramenta ou dados trafegados.</p>
+    <!-- Proteção Jurídica -->
+    <div id="terms-overlay" class="overlay">
+        <div class="modal">
+            <h2>Termos de Uso</h2>
+            <p>Este é um experimento científico de rede Mesh P2P. <strong>Não existem servidores de mídia.</strong></p>
+            <p>Tudo o que trafega (vídeo, áudio, textos, arquivos) vai diretamente do seu navegador para os navegadores
+                dos outros participantes na sala via tecnologia WebRTC.</p>
+            <p>Ao entrar, você assume total responsabilidade pelo uso. O autor do software não tem acesso à sala.</p>
             <button onclick="acceptTerms()">Concordo e Aceito</button>
         </div>
     </div>
 
-    <!-- Modal de Entrada (Criar/Entrar) -->
-    <div id="join-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
+    <!-- Tela de Conexão -->
+    <div id="join-overlay" class="overlay" style="display: none;">
+        <div class="modal">
             <h2 id="join-title">Gama Share</h2>
-            <p id="join-desc" style="text-align: center; margin-bottom: 10px;"></p>
-            
-            <div id="room-display-box" class="readonly-room" style="display: none;"></div>
-            
-            <input type="text" id="nickname" placeholder="Digite seu Nickname" required autocomplete="off">
-            <button id="btn-join-action" onclick="executeJoin()"></button>
+            <p id="join-desc">Iniciando protocolo de conexão P2P.</p>
+            <div id="room-display" class="readonly-id" style="display: none;"></div>
+            <input type="text" id="nickname" placeholder="Digite seu Nickname" autocomplete="off" required>
+            <button id="btn-connect" onclick="connectToMesh()">Conectar à Malha</button>
+            <div id="conn-status"
+                style="margin-top: 10px; font-size: 0.8em; color: var(--gama-green); text-align: center;"></div>
         </div>
     </div>
 
-    <!-- Interface Principal -->
+    <!-- App Principal -->
     <div id="app">
         <header>
-            <div class="brand">
-                <span>🌐</span> Gama Share
-                <span class="room-info" id="top-room-id" onclick="copyRoomLink()" title="Clique para copiar o link"></span>
-            </div>
+            <div class="brand">🌐 Gama Share</div>
             <div>
-                <button class="danger" style="width: auto; padding: 8px 15px; margin: 0; font-size: 0.85em;" onclick="location.href = window.location.pathname">Sair da Sala</button>
+                <span class="room-badge" id="top-room-id" onclick="copyRoomLink()" title="Copiar Link"></span>
+                <button class="btn-danger" style="width: auto; padding: 6px 15px; margin-left: 10px; border:none;"
+                    onclick="location.href = window.location.pathname">Sair</button>
             </div>
         </header>
 
         <main>
-            <div id="video-container">
+            <div id="video-grid">
                 <!-- Vídeo Local -->
                 <div class="video-card" id="card-local">
                     <video id="local-video" autoplay muted playsinline></video>
-                    <div class="peer-name">Você (<span id="local-nick-display"></span>)</div>
+                    <div class="peer-info">Você (<span id="my-nick-display"></span>)</div>
                 </div>
             </div>
 
             <div id="sidebar">
                 <div id="chat-history">
-                    <div class="system-msg">Bem-vindo ao Gama Share.<br>Tudo aqui é P2P e descentralizado. Cole imagens diretamente no campo de texto abaixo.</div>
+                    <div class="sys-msg">Bem-vindo ao P2P. Cole imagens ou envie arquivos. Nada é salvo.</div>
                 </div>
-                
+
                 <div id="controls-panel">
-                    <div class="my-controls">
-                        <button onclick="toggleMic()" id="btn-mic" class="active">🎙️ Mic On</button>
-                        <button onclick="toggleCam()" id="btn-cam" class="active">📹 Cam On</button>
-                        <button onclick="shareScreen()" id="btn-screen">🖥️ Tela</button>
+                    <div class="my-tools">
+                        <button id="btn-mic" class="active" onclick="toggleMic()">🎙️ Mic</button>
+                        <button id="btn-cam" class="active" onclick="toggleCam()">📹 Cam</button>
+                        <button id="btn-screen" onclick="shareScreen()">🖥️ Tela</button>
                     </div>
-                    <div class="chat-input-area">
+                    <div class="chat-input-box">
                         <input type="text" id="chat-input" placeholder="Mensagem... (Cole imagens)">
                         <button onclick="sendText()">➤</button>
                     </div>
                     <input type="file" id="file-input" style="display:none" onchange="sendFile(this)">
-                    <button class="file-btn" onclick="document.getElementById('file-input').click()">📁 Compartilhar Arquivo P2P</button>
+                    <button style="border-style: dashed; color: var(--text-muted);"
+                        onclick="document.getElementById('file-input').click()">📁 Compartilhar Arquivo</button>
                 </div>
             </div>
         </main>
     </div>
 
-<script>
-    /* ======================================================================
-       ESTADO GLOBAL E CONFIGURAÇÕES
-       ====================================================================== */
-    const myId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
-    let myNickname = "Anônimo";
-    let roomId = "";
-    let isCreatingRoom = false;
-    
-    let localStream = null;
-    let screenStream = null;
-    const peers = {}; // peers[id] = { connection, dataChannel, lastHeartbeat }
-    
-    const CHUNK_SIZE = 16384; // 16KB para envio eficiente via DataChannel WebRTC
+    <script>
+        /** =========================================================================
+         *  ESTADO GLOBAL
+         *  ========================================================================= */
+        const myId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+        let myNickname = "Anônimo";
+        let roomId = "";
+        let isHost = false;
 
-    // Servidores STUN públicos livres do Google
-    const webrtcConfig = {
-        iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:stun1.l.google.com:19302" }
-        ]
-    };
+        let peer = null;
+        let localStream = null;
+        let screenStream = null;
 
-    // Servidor WebSocket global para Bootstrap inicial (Apenas troca de chaves IP/SDP)
-    // Utilizamos um public broker livre.
-    const SIGNALING_SERVER = "wss://free.blr2.piesocket.com/v3/1?api_key=O31hMDb2N0UrtwE1w73d32z63R7l3N39mD4o1a3P";
-    let ws = null;
+        // Dicionários para manter a malha Full Mesh
+        const connections = {}; // Armazena conexões de dados: connections[peerId]
+        const calls = {};       // Armazena chamadas de mídia: calls[peerId]
+        const peersData = {};   // Armazena os nicks: peersData[peerId] = nickname
 
-    /* ======================================================================
-       LÓGICA DE INICIALIZAÇÃO E UI
-       ====================================================================== */
-    window.onload = () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        roomId = urlParams.get('sala');
+        /** =========================================================================
+         *  INICIALIZAÇÃO E UI
+         *  ========================================================================= */
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            roomId = urlParams.get('sala');
 
-        if (!roomId) {
-            // Modo Criação
-            isCreatingRoom = true;
-            roomId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-            document.getElementById('join-title').innerText = "Criar Nova Sala";
-            document.getElementById('join-desc').innerText = "Você está criando um ambiente seguro P2P.";
-            document.getElementById('btn-join-action').innerText = "Criar e Entrar";
-        } else {
-            // Modo Entrada
-            isCreatingRoom = false;
-            document.getElementById('join-title').innerText = "Entrar na Sala";
-            document.getElementById('join-desc').innerText = "Você foi convidado. Insira seu nome para conectar.";
-            document.getElementById('room-display-box').style.display = 'block';
-            document.getElementById('room-display-box').innerText = `ID: ${roomId}`;
-            document.getElementById('btn-join-action').innerText = "Conectar";
-        }
-    };
-
-    function acceptTerms() {
-        document.getElementById('terms-modal').style.display = 'none';
-        document.getElementById('join-modal').style.display = 'flex';
-        document.getElementById('nickname').focus();
-    }
-
-    async function executeJoin() {
-        const nickInput = document.getElementById('nickname').value.trim();
-        myNickname = nickInput || "Anônimo_" + Math.floor(Math.random()*1000);
-
-        document.getElementById('join-modal').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
-        
-        // Atualiza a URL dinamicamente sem recarregar a página
-        window.history.pushState({room: roomId}, "Gama Share", `?sala=${roomId}`);
-        
-        document.getElementById('top-room-id').innerText = `🔗 ID: ${roomId.split('-')[0]}... (Copiar)`;
-        document.getElementById('local-nick-display').innerText = myNickname;
-
-        await setupMedia();
-        connectSignaling();
-        
-        // Loops de estabilidade de rede
-        setInterval(checkNetworkHealth, 5000);
-        setInterval(sendHeartbeat, 3000);
-    }
-
-    function copyRoomLink() {
-        const url = window.location.origin + window.location.pathname + "?sala=" + roomId;
-        navigator.clipboard.writeText(url);
-        
-        const btn = document.getElementById('top-room-id');
-        const originalText = btn.innerText;
-        btn.innerText = "✅ Link Copiado!";
-        btn.style.color = "var(--primary)";
-        setTimeout(() => {
-            btn.innerText = originalText;
-            btn.style.color = "var(--text-muted)";
-        }, 2000);
-    }
-
-    /* ======================================================================
-       MÍDIA E DEGRADAÇÃO PROGRESSIVA (MOSAICO)
-       ====================================================================== */
-    async function setupMedia() {
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: 640, height: 480, frameRate: 24 }, 
-                audio: true 
-            });
-            document.getElementById('local-video').srcObject = localStream;
-        } catch (e) {
-            console.warn("Acesso à câmera/mic negado ou inexistente. Modo ouvinte ativado.");
-            // Cria um stream vazio para não quebrar a lógica do WebRTC
-            localStream = new MediaStream(); 
-        }
-    }
-
-    async function adaptQuality() {
-        if(!localStream) return;
-        const videoTrack = localStream.getVideoTracks()[0];
-        if(!videoTrack) return;
-
-        const peerCount = Object.keys(peers).length;
-        try {
-            if (peerCount > 6) {
-                // Degradação para Mosaico pesado
-                await videoTrack.applyConstraints({ width: 160, height: 120, frameRate: 10 });
-                addSystemMsg("Rede densa: Resolução de vídeo reduzida (Auto-Degradação).");
-            } else if (peerCount > 3) {
-                // Degradação leve
-                await videoTrack.applyConstraints({ width: 320, height: 240, frameRate: 15 });
+            if (!roomId) {
+                // Eu sou o Host
+                isHost = true;
+                roomId = "gama-" + (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2));
+                document.getElementById('join-title').innerText = "Criar Nova Sala";
+                document.getElementById('join-desc').innerText = "Você será o primeiro nó da rede (Host).";
             } else {
-                // Padrão
-                await videoTrack.applyConstraints({ width: 640, height: 480, frameRate: 24 });
-            }
-        } catch(e) { /* Navegadores mobile podem ignorar constraints */ }
-    }
-
-    /* ======================================================================
-       SINALIZAÇÃO VIA WEBSOCKET PÚBLICO
-       ====================================================================== */
-    function connectSignaling() {
-        ws = new WebSocket(SIGNALING_SERVER);
-        
-        ws.onopen = () => {
-            addSystemMsg("Conectado ao Tracker Global. Buscando peers na sala...");
-            ws.send(JSON.stringify({ type: 'join', room: roomId, sender: myId }));
-        };
-
-        ws.onmessage = async (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                
-                // Isolamento de Sala Lógica: Só processa mensagens desta exata sala.
-                if (msg.room !== roomId || msg.sender === myId) return;
-
-                if (msg.type === 'join') {
-                    // Se eu já estava na sala e alguém entrou, eu inicio a conexão (Initiator)
-                    createPeerConnection(msg.sender, true);
-                } 
-                else if (msg.type === 'offer') {
-                    // Recebi uma oferta. Crio a conexão (Receiver) e respondo.
-                    const pc = createPeerConnection(msg.sender, false);
-                    await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    ws.send(JSON.stringify({ type: 'answer', room: roomId, sender: myId, target: msg.sender, sdp: answer }));
-                } 
-                else if (msg.type === 'answer' && msg.target === myId) {
-                    // Recebi a resposta da minha oferta.
-                    const pc = peers[msg.sender]?.connection;
-                    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-                } 
-                else if (msg.type === 'ice-candidate' && msg.target === myId) {
-                    // Trocando rotas de IP para perfurar NAT.
-                    const pc = peers[msg.sender]?.connection;
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-                }
-            } catch (e) { /* Ignora lixo no WebSocket público */ }
-        };
-        
-        ws.onclose = () => {
-            // A sinalização não é mais necessária após a malha WebRTC estabilizar.
-            console.log("WebSocket desconectado. P2P WebRTC assumindo o controle total.");
-        };
-    }
-
-    /* ======================================================================
-       REDE MESH WEBRTC P2P
-       ====================================================================== */
-    function createPeerConnection(peerId, isInitiator) {
-        if (peers[peerId]) return peers[peerId].connection;
-
-        const pc = new RTCPeerConnection(webrtcConfig);
-        peers[peerId] = { connection: pc, dataChannel: null, lastHeartbeat: Date.now() };
-
-        // Anexa streams locais (Audio/Video)
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-        // ICE Handling
-        pc.onicecandidate = (event) => {
-            if (event.candidate && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'ice-candidate', room: roomId, sender: myId, target: peerId, candidate: event.candidate }));
+                // Eu sou Cliente
+                isHost = false;
+                document.getElementById('join-title').innerText = "Entrar na Sala";
+                document.getElementById('join-desc').innerText = "Conectando ao Tracker do Host...";
+                document.getElementById('room-display').style.display = 'block';
+                document.getElementById('room-display').innerText = `ID: ${roomId}`;
             }
         };
 
-        // Recebimento de Mídia
-        pc.ontrack = (event) => {
-            if (!document.getElementById(`video-${peerId}`)) {
-                createVideoCard(peerId);
-            }
-            document.getElementById(`video-${peerId}`).srcObject = event.streams[0];
-            adaptQuality(); 
-        };
+        function acceptTerms() {
+            document.getElementById('terms-overlay').style.display = 'none';
+            document.getElementById('join-overlay').style.display = 'flex';
+            document.getElementById('nickname').focus();
+        }
 
-        // Data Channels (Onde ocorre a mágica do Chat, Arquivos e Anarquia)
-        if (isInitiator) {
-            const dc = pc.createDataChannel('gama-data');
-            setupDataChannel(dc, peerId);
-            
-            pc.createOffer().then(offer => {
-                pc.setLocalDescription(offer);
-                if(ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'offer', room: roomId, sender: myId, target: peerId, sdp: offer }));
+        function copyRoomLink() {
+            const url = window.location.origin + window.location.pathname + "?sala=" + roomId;
+            navigator.clipboard.writeText(url);
+            const badge = document.getElementById('top-room-id');
+            const orig = badge.innerText;
+            badge.innerText = "Copiado!";
+            setTimeout(() => badge.innerText = orig, 2000);
+        }
+
+        async function connectToMesh() {
+            const nickInput = document.getElementById('nickname').value.trim();
+            myNickname = nickInput || "Anônimo_" + Math.floor(Math.random() * 1000);
+            peersData[myId] = myNickname;
+
+            document.getElementById('btn-connect').disabled = true;
+            document.getElementById('conn-status').innerText = "Acessando periféricos...";
+
+            await setupMedia();
+
+            document.getElementById('conn-status').innerText = "Negociando com PeerJS Cloud...";
+
+            // --- A MÁGICA ACONTECE AQUI ---
+            // Se eu sou o Host, eu forço meu ID do PeerJS a ser o RoomID.
+            // Se sou Cliente, deixo o PeerJS gerar um ID aleatório para mim.
+            const peerConfig = { config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] } };
+            peer = isHost ? new Peer(roomId, peerConfig) : new Peer(peerConfig);
+
+            peer.on('open', id => {
+                // Atualiza a interface e a URL
+                document.getElementById('join-overlay').style.display = 'none';
+                document.getElementById('app').style.display = 'flex';
+                window.history.pushState({ room: roomId }, "", `?sala=${roomId}`);
+                document.getElementById('top-room-id').innerText = `🔗 Sala: ${roomId.split('-')[1] || roomId.substring(0, 6)}...`;
+                document.getElementById('my-nick-display').innerText = myNickname;
+
+                sysMsg(isHost ? "Sala criada. Aguardando peers." : "Conectado à nuvem. Buscando Host...");
+
+                if (!isHost) {
+                    // Se sou Cliente, me conecto ao Host usando o RoomID
+                    initiateConnection(roomId);
                 }
             });
-        } else {
-            pc.ondatachannel = (event) => setupDataChannel(event.channel, peerId);
+
+            // Quando ALGUÉM se conecta a mim (Dados)
+            peer.on('connection', conn => {
+                handleDataConnection(conn);
+            });
+
+            // Quando ALGUÉM me liga (Vídeo/Áudio)
+            peer.on('call', call => {
+                call.answer(localStream); // Atendo enviando minha câmera
+                handleMediaCall(call);
+            });
+
+            peer.on('error', err => {
+                console.error(err);
+                if (err.type === 'peer-unavailable') {
+                    alert("O Host não foi encontrado. A sala pode ter sido encerrada.");
+                    location.href = window.location.pathname;
+                }
+            });
+
+            // Loop de auto-degradação da qualidade (Mosaico)
+            setInterval(adaptQuality, 10000);
         }
 
-        return pc;
-    }
+        /** =========================================================================
+         *  LÓGICA DA MALHA P2P (FULL MESH ROTEADA)
+         *  ========================================================================= */
+        function initiateConnection(targetId) {
+            if (connections[targetId] || targetId === peer.id) return;
 
-    function removePeer(peerId) {
-        if (peers[peerId]) {
-            peers[peerId].connection.close();
-            delete peers[peerId];
+            const conn = peer.connect(targetId);
+            handleDataConnection(conn);
+
+            // Assim que conectar dados, eu ligo em vídeo para a pessoa
+            conn.on('open', () => {
+                const call = peer.call(targetId, localStream);
+                handleMediaCall(call);
+            });
         }
-        const card = document.getElementById(`card-${peerId}`);
-        if (card) {
-            card.remove();
-            addSystemMsg(`Um par foi desconectado.`);
-        }
-        adaptQuality();
-    }
 
-    /* ======================================================================
-       CANAL DE DADOS (DATA CHANNEL)
-       ====================================================================== */
-    function setupDataChannel(dc, peerId) {
-        peers[peerId].dataChannel = dc;
-        dc.binaryType = 'arraybuffer'; // Crucial para transferência de arquivos
+        function handleDataConnection(conn) {
+            connections[conn.peer] = conn;
 
-        let incomingFileInfo = null;
-        let incomingFileData = [];
+            conn.on('open', () => {
+                // Sempre que conecto, envio meu nick
+                conn.send({ type: 'handshake', nickname: myNickname });
+            });
 
-        dc.onmessage = (event) => {
-            peers[peerId].lastHeartbeat = Date.now();
+            conn.on('data', data => {
+                // Handshake (Troca de Nomes)
+                if (data.type === 'handshake') {
+                    peersData[conn.peer] = data.nickname;
+                    updateVideoCardNick(conn.peer);
 
-            // Buffers Binários (Partes do Arquivo)
-            if (event.data instanceof ArrayBuffer) {
-                incomingFileData.push(event.data);
-                return;
-            }
+                    // Se EU sou o Host, eu atuo como roteador da malha (Mesh Bootstrap)
+                    if (isHost) {
+                        // Envio para o novo peer a lista de TODOS os outros que já estão na sala
+                        const otherPeers = Object.keys(connections).filter(id => id !== conn.peer);
+                        conn.send({ type: 'mesh_bootstrap', peersList: otherPeers });
 
-            // Textos JSON
-            try {
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'heartbeat') return; 
-                
-                if (data.type === 'chat') {
-                    appendMessage(data.nickname, data.text);
-                } 
+                        // Aviso os antigos sobre o novo peer
+                        broadcastToOthers(conn.peer, { type: 'mesh_new_peer', newPeerId: conn.peer });
+                    }
+                }
+                // Recebendo lista do Host para me conectar aos outros
+                else if (data.type === 'mesh_bootstrap') {
+                    data.peersList.forEach(peerId => initiateConnection(peerId));
+                }
+                // Recebendo aviso do Host que alguém novo entrou
+                else if (data.type === 'mesh_new_peer') {
+                    initiateConnection(data.newPeerId);
+                }
+                // Funcionalidades da Sala
+                else if (data.type === 'chat') {
+                    appendMsg(peersData[conn.peer] || 'Anônimo', data.text);
+                }
                 else if (data.type === 'image') {
-                    appendImage(data.nickname, data.base64);
+                    appendImg(peersData[conn.peer] || 'Anônimo', data.base64);
                 }
-                else if (data.type === 'control') {
-                    handleAnarchyControl(data);
+                else if (data.type === 'file') {
+                    // PeerJS suporta envio nativo de Blob/ArrayBuffer \o/
+                    appendFile(peersData[conn.peer] || 'Anônimo', data.name, data.file);
                 }
-                else if (data.type === 'file_start') {
-                    incomingFileInfo = data;
-                    incomingFileData = [];
+                else if (data.type === 'anarchy') {
+                    handleAnarchy(data, peersData[conn.peer]);
                 }
-                else if (data.type === 'file_end') {
-                    const blob = new Blob(incomingFileData);
-                    appendFileLink(incomingFileInfo.sender, incomingFileInfo.name, blob);
-                    incomingFileInfo = null;
-                    incomingFileData = [];
-                }
-            } catch (e) { console.error("Erro parsing P2P data:", e); }
-        };
-    }
+            });
 
-    function broadcastData(messageObj) {
-        const msgStr = JSON.stringify(messageObj);
-        Object.values(peers).forEach(p => {
-            if (p.dataChannel && p.dataChannel.readyState === 'open') {
-                p.dataChannel.send(msgStr);
-            }
-        });
-    }
+            conn.on('close', () => removePeer(conn.peer));
+        }
 
-    // Tolerância a falhas (Self-Healing)
-    function sendHeartbeat() { broadcastData({ type: 'heartbeat' }); }
+        function handleMediaCall(call) {
+            calls[call.peer] = call;
 
-    function checkNetworkHealth() {
-        const now = Date.now();
-        for (const peerId in peers) {
-            if (now - peers[peerId].lastHeartbeat > 15000) {
-                console.warn(`Timeout de P2P: Expurgando nó ${peerId}`);
-                removePeer(peerId);
+            call.on('stream', remoteStream => {
+                if (!document.getElementById(`video-${call.peer}`)) {
+                    createVideoCard(call.peer);
+                }
+                const videoEl = document.getElementById(`video-${call.peer}`);
+                // Evita flickering setando o srcObject apenas se for novo
+                if (videoEl.srcObject !== remoteStream) {
+                    videoEl.srcObject = remoteStream;
+                }
+            });
+
+            call.on('close', () => removePeer(call.peer));
+        }
+
+        function removePeer(peerId) {
+            if (connections[peerId]) delete connections[peerId];
+            if (calls[peerId]) delete calls[peerId];
+
+            const card = document.getElementById(`card-${peerId}`);
+            if (card) {
+                sysMsg(`${peersData[peerId] || 'Um usuário'} saiu da rede.`);
+                card.remove();
+                delete peersData[peerId];
             }
         }
-    }
 
-    /* ======================================================================
-       CONTROLES DE UI E MODO ANARQUIA
-       ====================================================================== */
-    function createVideoCard(peerId) {
-        const div = document.createElement('div');
-        div.className = 'video-card';
-        div.id = `card-${peerId}`;
-        
-        // Slider = Local Volume // Botões = Controle Anárquico Global
-        div.innerHTML = `
+        function broadcast(dataObj) {
+            Object.values(connections).forEach(conn => {
+                if (conn.open) conn.send(dataObj);
+            });
+        }
+
+        function broadcastToOthers(exceptId, dataObj) {
+            Object.values(connections).forEach(conn => {
+                if (conn.open && conn.peer !== exceptId) conn.send(dataObj);
+            });
+        }
+
+        /** =========================================================================
+         *  MÍDIA E DEGRADAÇÃO (MOSAICO)
+         *  ========================================================================= */
+        async function setupMedia() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: 24 }, audio: true });
+                document.getElementById('local-video').srcObject = localStream;
+            } catch (e) {
+                console.warn("Sem câmera/mic. Funcionalidade reduzida.");
+                localStream = new MediaStream(); // Stream vazio pra não quebrar ligações
+            }
+        }
+
+        async function adaptQuality() {
+            if (!localStream) return;
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (!videoTrack) return;
+
+            const count = Object.keys(connections).length;
+            try {
+                if (count > 6) { await videoTrack.applyConstraints({ width: 160, height: 120, frameRate: 10 }); } // Mosaico Extremo
+                else if (count > 3) { await videoTrack.applyConstraints({ width: 320, height: 240, frameRate: 15 }); } // Mosaico Leve
+                else { await videoTrack.applyConstraints({ width: 640, height: 480, frameRate: 24 }); } // Padrão
+            } catch (e) { }
+        }
+
+        /** =========================================================================
+         *  CONTROLES LOCAIS E ANARQUIA GLOBAL
+         *  ========================================================================= */
+        function createVideoCard(peerId) {
+            const div = document.createElement('div');
+            div.className = 'video-card';
+            div.id = `card-${peerId}`;
+
+            div.innerHTML = `
             <video id="video-${peerId}" autoplay playsinline></video>
-            <div class="peer-name">Peer Anônimo</div>
-            <div class="peer-controls">
-                <input type="range" min="0" max="1" step="0.1" value="1" onchange="document.getElementById('video-${peerId}').volume = this.value" title="Volume Local (Somente para você)">
-                <button onclick="sendAnarchyCommand('${peerId}', 'mute')" title="Forçar Mute neste usuário para TODOS">🔇</button>
-                <button onclick="sendAnarchyCommand('${peerId}', 'hide')" title="Forçar fechamento da câmera deste usuário">🚫</button>
+            <div class="peer-info" id="nick-${peerId}">Conectando...</div>
+            <div class="anarchy-controls">
+                <input type="range" min="0" max="1" step="0.1" value="1" title="Volume Local" onchange="document.getElementById('video-${peerId}').volume = this.value">
+                <button onclick="enforceAnarchy('${peerId}', 'mute')" title="Forçar Mute">🔇</button>
+                <button onclick="enforceAnarchy('${peerId}', 'hide')" title="Forçar Hide">🚫</button>
             </div>
         `;
-        document.getElementById('video-container').appendChild(div);
-    }
+            document.getElementById('video-grid').appendChild(div);
+            updateVideoCardNick(peerId);
+        }
 
-    // "Anarquia": Emitindo uma ordem para outro navegador fechar seus dispositivos
-    function sendAnarchyCommand(targetId, action) {
-        broadcastData({ type: 'control', target: targetId, action: action, senderNick: myNickname });
-        addSystemMsg(`Aviso: Você forçou uma ação de moderação global.`);
-    }
+        function updateVideoCardNick(peerId) {
+            const el = document.getElementById(`nick-${peerId}`);
+            if (el && peersData[peerId]) el.innerText = peersData[peerId];
+        }
 
-    // O navegador alvo recebe a ordem e obedece
-    function handleAnarchyControl(data) {
-        if (data.target === myId) {
-            if (data.action === 'mute') {
-                const track = localStream.getAudioTracks()[0];
-                if (track && track.enabled) toggleMic(); // Usa a função existente para atualizar UI
-                addSystemMsg(`🚨 ${data.senderNick} silenciou o seu microfone.`);
-            } 
-            else if (data.action === 'hide') {
-                const track = localStream.getVideoTracks()[0];
-                if (track && track.enabled) toggleCam();
-                addSystemMsg(`🚨 ${data.senderNick} desligou a sua câmera.`);
+        // Ferramentas Locais
+        function toggleMic() {
+            const track = localStream?.getAudioTracks()[0];
+            if (track) {
+                track.enabled = !track.enabled;
+                const btn = document.getElementById('btn-mic');
+                btn.className = track.enabled ? "active" : "";
             }
         }
-    }
 
-    // Controles Locais
-    function toggleMic() {
-        const track = localStream?.getAudioTracks()[0];
-        if(track) {
-            track.enabled = !track.enabled;
-            const btn = document.getElementById('btn-mic');
-            btn.innerText = track.enabled ? "🎙️ Mic On" : "🎙️ Mic Off";
-            btn.className = track.enabled ? "active" : "";
+        function toggleCam() {
+            const track = localStream?.getVideoTracks()[0];
+            if (track) {
+                track.enabled = !track.enabled;
+                const btn = document.getElementById('btn-cam');
+                btn.className = track.enabled ? "active" : "";
+            }
         }
-    }
 
-    function toggleCam() {
-        const track = localStream?.getVideoTracks()[0];
-        if(track) {
-            track.enabled = !track.enabled;
-            const btn = document.getElementById('btn-cam');
-            btn.innerText = track.enabled ? "📹 Cam On" : "📹 Cam Off";
-            btn.className = track.enabled ? "active" : "";
+        async function shareScreen() {
+            try {
+                if (!screenStream) {
+                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                    const screenTrack = screenStream.getVideoTracks()[0];
+
+                    // Substitui a track nas chamadas do PeerJS
+                    Object.values(calls).forEach(call => {
+                        const sender = call.peerConnection.getSenders().find(s => s.track?.kind === 'video');
+                        if (sender) sender.replaceTrack(screenTrack);
+                    });
+
+                    document.getElementById('local-video').srcObject = screenStream;
+                    document.getElementById('btn-screen').className = "active";
+                    document.getElementById('btn-screen').innerText = "🖥️ Parar";
+
+                    screenTrack.onended = () => stopScreenShare();
+                } else {
+                    stopScreenShare();
+                }
+            } catch (e) { console.error("Screen share cancelado."); }
         }
-    }
 
-    async function shareScreen() {
-        try {
-            if(!screenStream) {
-                screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                const screenTrack = screenStream.getVideoTracks()[0];
-                
-                Object.values(peers).forEach(p => {
-                    const sender = p.connection.getSenders().find(s => s.track?.kind === 'video');
-                    if(sender) sender.replaceTrack(screenTrack);
+        function stopScreenShare() {
+            if (screenStream) screenStream.getTracks().forEach(t => t.stop());
+            screenStream = null;
+
+            const videoTrack = localStream?.getVideoTracks()[0];
+            if (videoTrack) {
+                Object.values(calls).forEach(call => {
+                    const sender = call.peerConnection.getSenders().find(s => s.track?.kind === 'video');
+                    if (sender) sender.replaceTrack(videoTrack);
                 });
-                
-                document.getElementById('local-video').srcObject = screenStream;
-                const btn = document.getElementById('btn-screen');
-                btn.innerText = "🖥️ Parar Tela";
-                btn.className = "active";
-
-                screenTrack.onended = () => stopScreenShare();
-            } else {
-                stopScreenShare();
             }
-        } catch(e) { console.error("Acesso à tela cancelado."); }
-    }
 
-    function stopScreenShare() {
-        if(screenStream) screenStream.getTracks().forEach(t => t.stop());
-        screenStream = null;
-        
-        const videoTrack = localStream?.getVideoTracks()[0];
-        Object.values(peers).forEach(p => {
-            const sender = p.connection.getSenders().find(s => s.track?.kind === 'video');
-            if(sender && videoTrack) sender.replaceTrack(videoTrack);
+            document.getElementById('local-video').srcObject = localStream;
+            document.getElementById('btn-screen').className = "";
+            document.getElementById('btn-screen').innerText = "🖥️ Tela";
+        }
+
+        // Anarquia
+        function enforceAnarchy(targetId, action) {
+            // Envia o comando anárquico via P2P
+            broadcast({ type: 'anarchy', target: targetId, action: action });
+            sysMsg(`Aviso: Ordem de censura enviada para o nó selecionado.`);
+        }
+
+        function handleAnarchy(data, senderNick) {
+            // Se a ordem for pra mim, eu devo obedecer
+            if (data.target === myId) {
+                if (data.action === 'mute') {
+                    const track = localStream.getAudioTracks()[0];
+                    if (track && track.enabled) toggleMic(); // Desliga
+                    sysMsg(`🚨 O usuário ${senderNick || 'Anônimo'} forçou o mute no seu microfone.`);
+                }
+                else if (data.action === 'hide') {
+                    const track = localStream.getVideoTracks()[0];
+                    if (track && track.enabled) toggleCam(); // Desliga
+                    sysMsg(`🚨 O usuário ${senderNick || 'Anônimo'} forçou o desligamento da sua câmera.`);
+                }
+            }
+        }
+
+        /** =========================================================================
+         *  CHAT, IMAGENS E ARQUIVOS (Dados P2P)
+         *  ========================================================================= */
+        const hist = document.getElementById('chat-history');
+
+        function sysMsg(txt) {
+            hist.innerHTML += `<div class="sys-msg">${txt}</div>`;
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        function appendMsg(nick, txt) {
+            hist.innerHTML += `<div class="msg"><strong>${nick}</strong>${txt}</div>`;
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        function appendImg(nick, b64) {
+            hist.innerHTML += `<div class="msg"><strong>${nick}</strong><img src="${b64}"></div>`;
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        function appendFile(nick, name, blob) {
+            const url = URL.createObjectURL(blob);
+            hist.innerHTML += `<div class="msg"><strong>${nick} enviou arquivo:</strong><a class="file-link" href="${url}" download="${name}">💾 Baixar ${name}</a></div>`;
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        function sendText() {
+            const input = document.getElementById('chat-input');
+            const txt = input.value.trim();
+            if (txt) {
+                appendMsg("Você", txt);
+                broadcast({ type: 'chat', text: txt });
+                input.value = '';
+            }
+        }
+
+        document.getElementById('chat-input').addEventListener('keypress', e => { if (e.key === 'Enter') sendText(); });
+
+        // Colar Imagem (Ctrl+V)
+        document.getElementById('chat-input').addEventListener('paste', e => {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = event => {
+                        const b64 = event.target.result;
+                        appendImg("Você", b64);
+                        broadcast({ type: 'image', base64: b64 });
+                    };
+                    reader.readAsDataURL(blob);
+                }
+            }
         });
-        
-        document.getElementById('local-video').srcObject = localStream;
-        const btn = document.getElementById('btn-screen');
-        btn.innerText = "🖥️ Tela";
-        btn.className = "";
-    }
 
-    /* ======================================================================
-       CHAT, IMAGENS E TRANSFERÊNCIA DE ARQUIVOS
-       ====================================================================== */
-    function appendMessage(nick, text) {
-        const history = document.getElementById('chat-history');
-        history.innerHTML += `<div class="message"><strong>${nick}</strong> ${text}</div>`;
-        history.scrollTop = history.scrollHeight;
-    }
+        // Envio de Arquivo (PeerJS suporta envio de Blob nativo)
+        function sendFile(input) {
+            const file = input.files[0];
+            if (!file) return;
 
-    function appendImage(nick, base64) {
-        const history = document.getElementById('chat-history');
-        history.innerHTML += `<div class="message"><strong>${nick}</strong><img src="${base64}"></div>`;
-        history.scrollTop = history.scrollHeight;
-    }
+            if (file.size > 20 * 1024 * 1024) { // Limite de 20MB sugerido para não estourar RAM
+                alert("Evite enviar arquivos maiores que 20MB para manter a estabilidade da malha.");
+            }
 
-    function appendFileLink(nick, filename, blob) {
-        const url = URL.createObjectURL(blob);
-        const history = document.getElementById('chat-history');
-        history.innerHTML += `<div class="message"><strong>${nick} enviou arquivo:</strong><a class="file-link" href="${url}" download="${filename}">💾 ${filename} (Baixar)</a></div>`;
-        history.scrollTop = history.scrollHeight;
-    }
+            sysMsg(`Enviando arquivo: ${file.name}...`);
 
-    function addSystemMsg(text) {
-        const history = document.getElementById('chat-history');
-        history.innerHTML += `<div class="system-msg">${text}</div>`;
-        history.scrollTop = history.scrollHeight;
-    }
+            // Exibe localmente
+            appendFile("Você", file.name, file);
 
-    function sendText() {
-        const input = document.getElementById('chat-input');
-        const text = input.value.trim();
-        if(text) {
-            appendMessage("Você", text);
-            broadcastData({ type: 'chat', nickname: myNickname, text: text });
+            // Envia P2P via PeerJS
+            broadcast({ type: 'file', name: file.name, file: file });
+
             input.value = '';
         }
-    }
 
-    // Suporte para "Enter"
-    document.getElementById('chat-input').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') sendText();
-    });
-
-    // Captura de Imagem via Ctrl+V (Paste)
-    document.getElementById('chat-input').addEventListener('paste', function(e) {
-        const items = e.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-                const blob = items[i].getAsFile();
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const base64 = event.target.result;
-                    appendImage("Você", base64);
-                    broadcastData({ type: 'image', nickname: myNickname, base64: base64 });
-                };
-                reader.readAsDataURL(blob);
-            }
-        }
-    });
-
-    // Envio de Arquivos Fatiados (Chunking para evitar crash do DataChannel)
-    async function sendFile(input) {
-        const file = input.files[0];
-        if(!file) return;
-
-        addSystemMsg(`Enviando arquivo: ${file.name}...`);
-        broadcastData({ type: 'file_start', sender: myNickname, name: file.name, size: file.size });
-
-        const buffer = await file.arrayBuffer();
-        let offset = 0;
-
-        // Loop de envio de bytes
-        while (offset < buffer.byteLength) {
-            const chunk = buffer.slice(offset, offset + CHUNK_SIZE);
-            Object.values(peers).forEach(p => {
-                if (p.dataChannel && p.dataChannel.readyState === 'open') {
-                    p.dataChannel.send(chunk);
-                }
-            });
-            offset += CHUNK_SIZE;
-            // Atraso intencional mínimo para liberar a thread e não estourar o buffer interno do navegador
-            await new Promise(r => setTimeout(r, 5)); 
-        }
-
-        broadcastData({ type: 'file_end', sender: myNickname });
-        addSystemMsg(`Arquivo '${file.name}' transferido.`);
-        
-        // Coloca o arquivo localmente no chat do remetente também
-        const blob = new Blob([buffer]);
-        appendFileLink("Você", file.name, blob);
-        
-        input.value = ''; // Reseta o input
-    }
-</script>
+    </script>
 </body>
+
 </html>
