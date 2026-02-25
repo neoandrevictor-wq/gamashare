@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>P2P RING MASTER | V. FINAL</title>
+    <title>P2P RING MASTER | PROJETO EXPERIMENTAL</title>
+    <!-- Bibliotecas externas via CDN -->
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root {
@@ -35,7 +36,7 @@
             overflow: hidden;
         }
 
-        /* LEGAL MODAL */
+        /* LEGAL MODAL (TOS) */
         #tos-modal {
             position: fixed;
             inset: 0;
@@ -55,20 +56,17 @@
             border: 1px solid var(--accent);
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
-        }
-
-        .tos-card h2 {
-            color: var(--accent);
-            margin-bottom: 15px;
+            text-align: center;
         }
 
         .tos-text {
             font-size: 13px;
             color: #8b949e;
             line-height: 1.6;
-            text-align: left;
-            margin-bottom: 20px;
+            text-align: justify;
+            margin: 20px 0;
+            border-top: 1px solid #30363d;
+            padding-top: 15px;
         }
 
         /* SETUP SCREEN */
@@ -87,8 +85,8 @@
             padding: 30px;
             border-radius: 12px;
             border: 1px solid #30363d;
-            width: 90%;
-            max-width: 380px;
+            width: 95%;
+            max-width: 400px;
             text-align: center;
         }
 
@@ -103,7 +101,7 @@
             outline: none;
         }
 
-        /* HUD AREA */
+        /* HUD / HEADER */
         header {
             height: 60px;
             background: var(--panel);
@@ -113,6 +111,7 @@
             padding: 0 15px;
             justify-content: space-between;
             flex-shrink: 0;
+            z-index: 100;
         }
 
         .room-title {
@@ -120,10 +119,6 @@
             font-weight: bold;
             font-size: 14px;
             text-transform: uppercase;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 150px;
         }
 
         .hud-tags {
@@ -137,10 +132,9 @@
             font-size: 10px;
             font-weight: bold;
             background: #21262d;
-            white-space: nowrap;
         }
 
-        /* MAIN RESPONSIVE LAYOUT */
+        /* LAYOUT PRINCIPAL */
         .app-container {
             flex: 1;
             display: flex;
@@ -148,28 +142,28 @@
             overflow: hidden;
         }
 
-        @media (max-width: 800px) {
+        @media (max-width: 850px) {
             .app-container {
                 flex-direction: column;
             }
         }
 
-        /* VIDEO AREA */
+        /* GRID DE VÍDEOS */
         .video-grid {
-            flex: 1.2;
+            flex: 1.5;
             background: #000;
             overflow-y: auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 8px;
-            padding: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 10px;
+            padding: 10px;
             align-content: flex-start;
         }
 
-        @media (max-width: 800px) {
+        @media (max-width: 600px) {
             .video-grid {
-                flex: 0.8;
-                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                flex: 1;
+                grid-template-columns: 1fr;
             }
         }
 
@@ -181,6 +175,7 @@
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid #30363d;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
         }
 
         .v-item video {
@@ -193,27 +188,26 @@
             position: absolute;
             bottom: 0;
             width: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
             font-size: 10px;
             display: flex;
             justify-content: space-between;
         }
 
-        /* CHAT AREA */
+        /* CHAT E LOGS (INTEGRADOS) */
         .chat-section {
             flex: 1;
             display: flex;
             flex-direction: column;
             background: var(--panel);
             border-left: 1px solid #30363d;
-            min-width: 320px;
-            position: relative;
+            min-width: 350px;
         }
 
-        @media (max-width: 800px) {
+        @media (max-width: 850px) {
             .chat-section {
-                flex: 1.2;
+                flex: 1.5;
                 border-left: none;
                 border-top: 1px solid #30363d;
             }
@@ -230,13 +224,11 @@
 
         .m-item {
             font-size: 13px;
-            line-height: 1.5;
-            padding: 8px 12px;
+            padding: 10px;
             border-radius: 8px;
             background: #0d1117;
             border: 1px solid #30363d;
-            align-self: flex-start;
-            max-width: 90%;
+            max-width: 95%;
             word-break: break-word;
         }
 
@@ -246,8 +238,8 @@
             font-family: var(--font-mono);
             font-size: 11px;
             border-color: rgba(88, 166, 255, 0.2);
-            max-width: 100%;
             align-self: stretch;
+            max-width: 100%;
         }
 
         .m-item b {
@@ -258,12 +250,12 @@
             max-width: 100%;
             border-radius: 6px;
             margin-top: 5px;
-            border: 1px solid #30363d;
+            display: block;
         }
 
-        /* INPUT AREA */
+        /* ÁREA DE ENTRADA (MOBILE RESPONSIVE + 30PX LIFT) */
         .input-controls {
-            padding: 12px;
+            padding: 15px 15px 45px 15px;
             background: var(--panel);
             border-top: 1px solid #30363d;
         }
@@ -271,17 +263,18 @@
         .btn-row {
             display: flex;
             gap: 6px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            overflow-x: auto;
+            padding-bottom: 5px;
         }
 
         .text-row {
             display: flex;
-            gap: 6px;
+            gap: 8px;
         }
 
         .btn {
-            flex: 1;
-            padding: 10px;
+            padding: 10px 14px;
             border: none;
             border-radius: 6px;
             font-size: 12px;
@@ -290,77 +283,104 @@
             color: white;
             background: #21262d;
             border: 1px solid #30363d;
-            transition: 0.2s;
+            white-space: nowrap;
         }
 
         .btn-send {
-            flex: none;
-            width: 80px;
             background: var(--success);
             border: none;
+            padding: 0 20px;
         }
 
         .btn:active {
-            transform: scale(0.95);
-            opacity: 0.8;
+            transform: scale(0.96);
+        }
+
+        /* CRÉDITOS */
+        .credits {
+            font-size: 10px;
+            color: #484f58;
+            margin-top: 10px;
+            text-decoration: none;
+            display: block;
+        }
+
+        .credits:hover {
+            color: var(--accent);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 10px;
         }
     </style>
 </head>
 
 <body>
 
-    <!-- MODAL DE TERMOS -->
+    <!-- MODAL DE TERMOS (PROTEÇÃO LEGAL) -->
     <div id="tos-modal">
         <div class="tos-card">
-            <h2>CIÊNCIA P2P: TERMOS DE USO</h2>
+            <h2>AVISO DE RESPONSABILIDADE</h2>
             <div class="tos-text">
-                <b>1. PROPÓSITO:</b> Este é um artefato técnico-científico para estudo de redes descentralizadas. O
-                sistema opera sem servidores centrais de mídia.<br><br>
-                <b>2. RESPONSABILIDADE:</b> O desenvolvedor NÃO possui controle sobre os dados trafegados. Você é o
-                único responsável legal por qualquer conteúdo transmitido (voz, vídeo, arquivos ou texto).<br><br>
-                <b>3. PRIVACIDADE:</b> Sua conexão é direta (P2P) com outros usuários. Seu endereço IP pode ser visível
-                aos peers conectados para viabilizar o transporte de dados.<br><br>
-                <b>4. USO PROIBIDO:</b> É proibido o uso para fins ilícitos, criminosos ou distribuição de material sem
-                autorização legal.
+                Este sistema é uma ferramenta de comunicação P2P (Peer-to-Peer) descentralizada experimental.
+                Ao prosseguir, você reconhece que: <br><br>
+                1. <b>Sem Servidores:</b> Não há armazenamento central. Toda mídia (áudio, vídeo, arquivos) é
+                transmitida diretamente entre usuários.<br>
+                2. <b>Uso Ético:</b> Você se compromete a não utilizar esta rede para fins ilícitos, criminosos ou
+                assédio.<br>
+                3. <b>Isenção:</b> O desenvolvedor não possui meios de monitorar ou filtrar o tráfego e não se
+                responsabiliza por condutas de terceiros.<br>
+                4. <b>Conectividade:</b> Sua conexão P2P expõe seu IP aos participantes diretos do anel para viabilizar
+                o tráfego.
             </div>
-            <button class="btn" style="background:var(--success); border:none; padding:15px;" onclick="acceptTos()">LI E
-                ACEITO OS TERMOS</button>
+            <button class="btn" style="background:var(--success); width:100%; padding:15px; border:none;"
+                onclick="acceptTos()">ACEITO OS TERMOS E CONDIÇÕES</button>
+            <a href="https://gamanext-ia.vercel.app" target="_blank" class="credits">Powered by
+                gamanext-ia.vercel.app</a>
         </div>
     </div>
 
-    <!-- SETUP SCREEN -->
+    <!-- SETUP -->
     <div id="setup-overlay" style="display:none">
         <div class="setup-card">
-            <h2 style="margin-bottom:15px; color:var(--accent)">PROTOCOL SETUP</h2>
-            <input type="text" id="nick" placeholder="Seu Nickname" value="User_">
-            <input type="text" id="room" placeholder="Identificador da Sala" value="science-lab">
-            <button class="btn" style="background:var(--accent); border:none; padding:15px;"
-                onclick="startProtocol()">INICIALIZAR PROTOCOLO</button>
+            <h2 style="color:var(--accent); margin-bottom:10px">CONFIGURAR NÓ</h2>
+            <input type="text" id="nick" placeholder="Seu Nickname" value="Peer_">
+            <input type="text" id="room" placeholder="ID da Sala (Ex: lab-01)" value="p2p-ring-room">
+            <button class="btn" style="background:var(--accent); width:100%; padding:15px; border:none;"
+                onclick="startProtocol()">INICIAR PROTOCOLO</button>
         </div>
     </div>
 
-    <!-- HEADER HUD -->
+    <!-- HUD -->
     <header>
         <div class="room-title" id="hud-room">...</div>
         <div class="hud-tags">
-            <span id="ring-status" class="tag" style="color:var(--danger)">OFFLINE</span>
+            <span id="ring-status" class="tag" style="color:var(--danger)">RING: OPEN</span>
             <span id="my-id" class="tag">ID: --</span>
         </div>
     </header>
 
-    <!-- MAIN INTERFACE -->
+    <!-- MAIN -->
     <div class="app-container">
         <div class="video-grid" id="video-grid"></div>
 
         <section class="chat-section">
-            <div id="chat-list"></div>
+            <div id="chat-list">
+                <div class="m-item sys">[INFO] Sistema inicializado. Aguardando aceite dos termos.</div>
+            </div>
 
             <div class="input-controls">
                 <div class="btn-row">
                     <button class="btn" onclick="toggleMute('audio')">MIC</button>
                     <button class="btn" onclick="toggleMute('video')">CAM</button>
                     <button class="btn" onclick="shareScreen()">TELA</button>
-                    <button class="btn" onclick="document.getElementById('file-in').click()">ARQ</button>
+                    <button class="btn" onclick="document.getElementById('file-in').click()">ARQUIVO</button>
                     <input type="file" id="file-in" style="display:none" onchange="sendFile(this)">
                 </div>
                 <div class="text-row">
@@ -368,36 +388,40 @@
                         onkeypress="if(event.key==='Enter') sendChat()">
                     <button class="btn btn-send" onclick="sendChat()">ENVIAR</button>
                 </div>
+                <a href="https://gamanext-ia.vercel.app" target="_blank" class="credits"
+                    style="text-align:center">gamanext-ia.vercel.app</a>
             </div>
         </section>
     </div>
 
     <script>
         /**
-         * ⚛️ P2P RING MASTER ARCHITECTURE - REVISÃO FINAL
+         * ⚛️ ARQUITETURA P2P RING MASTER | V. FINAL SEM OMISSÕES
          */
 
         const STATE = {
             id: 'n' + Math.random().toString(36).substr(2, 4),
             name: '', room: '',
-            ring: [], peers: {}, channels: {},
+            ring: [], // IDs ordenados
+            peers: {}, channels: {},
             seen: new Set(),
             mqtt: null,
             currentNext: null,
-            localStream: null
+            localStream: null,
+            isSuper: false
         };
 
         const RTC_CONF = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
 
         // --- GESTÃO DE ACESSO ---
         function acceptTos() {
-            localStorage.setItem('p2p_accepted_tos', 'true');
+            localStorage.setItem('p2p_science_tos', 'true');
             document.getElementById('tos-modal').style.display = 'none';
             document.getElementById('setup-overlay').style.display = 'flex';
         }
 
         window.onload = () => {
-            if (localStorage.getItem('p2p_accepted_tos')) {
+            if (localStorage.getItem('p2p_science_tos')) {
                 document.getElementById('tos-modal').style.display = 'none';
                 document.getElementById('setup-overlay').style.display = 'flex';
             }
@@ -409,35 +433,35 @@
             STATE.ring = [STATE.id];
 
             document.getElementById('setup-overlay').style.display = 'none';
-            document.getElementById('hud-room').innerText = `SALA: ${STATE.room}`;
+            document.getElementById('hud-room').innerText = `ROOM: ${STATE.room}`;
             document.getElementById('my-id').innerText = `ID: ${STATE.id}`;
 
             try {
                 STATE.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 addVideo(STATE.id, `${STATE.name} (Você)`, STATE.localStream);
-            } catch (e) { logSys("Mídia local inacessível."); }
+            } catch (e) { logSys("Hardware de mídia não encontrado. Modo espectador."); }
 
-            initSignaling();
-            setInterval(refreshRing, 10000); // Tenta reintegrar ou achar novos peers
+            initSignaling(); // Corrigido: Chamada correta da função
+            setInterval(heartbeat, 10000); // Heartbeat periódico para manter anel vivo
         }
 
-        // --- LOGS INTEGRADOS NO CHAT ---
+        // --- TELEMETRIA NO CHAT ---
         function logSys(msg) {
             const chat = document.getElementById('chat-list');
             const div = document.createElement('div');
             div.className = 'm-item sys';
-            div.innerHTML = `[ST-LOG] ${msg}`;
+            div.innerHTML = `[P2P-LOG] ${msg}`;
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
         }
 
         // --- SINALIZAÇÃO MQTT ---
-        function initMqtt() {
+        function initSignaling() {
             STATE.mqtt = mqtt.connect('wss://test.mosquitto.org:8081');
-            const base = `p2p_science_vfinal_fix_${STATE.room}`;
+            const base = `p2p_v_final_full_${STATE.room}`;
 
             STATE.mqtt.on('connect', () => {
-                logSys("Conectado ao Broker de Sinalização.");
+                logSys("Conectado à infraestrutura global de sinalização.");
                 STATE.mqtt.subscribe(`${base}/announce`);
                 STATE.mqtt.subscribe(`${base}/direct/${STATE.id}`);
                 STATE.mqtt.publish(`${base}/announce`, JSON.stringify({ type: 'JOIN', id: STATE.id }));
@@ -446,53 +470,55 @@
             STATE.mqtt.on('message', (topic, payload) => {
                 const data = JSON.parse(payload.toString());
                 if (topic.endsWith('/announce') && data.id !== STATE.id) {
-                    handleJoin(data.id, base);
+                    handleDiscovery(data.id, base);
                 } else {
                     handleDirect(data);
                 }
             });
         }
 
-        function handleJoin(peerId, base) {
+        function handleDiscovery(peerId, base) {
             const all = [...new Set([...STATE.ring, STATE.id, peerId])].sort();
             STATE.ring = all;
 
+            // Eleição de Super Peer (Menor ID alfabético)
             if (STATE.id === all[0]) {
-                logSys(`Super Peer: Distribuindo Mapa de Anel: ${all.length} membros.`);
+                STATE.isSuper = true;
+                logSys("Assumindo papel de Coordenador (Super Peer).");
                 STATE.ring.forEach(pid => {
                     STATE.mqtt.publish(`${base}/direct/${pid}`, JSON.stringify({ type: 'MAP', ring: STATE.ring }));
                 });
             }
-            recalculateRing();
+            recalculateNeighbors();
         }
 
         async function handleDirect(data) {
             if (data.type === 'MAP') {
                 STATE.ring = data.ring;
-                recalculateRing();
+                recalculateNeighbors();
             } else if (data.type === 'OFFER') {
-                logSys(`Recebida oferta WebRTC de ${data.from}`);
+                logSys(`Handshake: Recebida oferta de ${data.from}`);
                 await handleOffer(data);
             } else if (data.type === 'ANSWER') {
                 const pc = STATE.peers[data.from];
                 if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
             } else if (data.type === 'ICE') {
                 const pc = STATE.peers[data.from];
-                if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => { });
+                if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => { });
             }
         }
 
-        // --- TOPOLOGIA DINÂMICA (ANEL + POLITE PEER) ---
-        function recalculateRing() {
+        // --- TOPOLOGIA EM ANEL COM POLITE PEER E BYPASS ---
+        function recalculateNeighbors() {
             const idx = STATE.ring.indexOf(STATE.id);
             if (idx === -1 || STATE.ring.length < 2) return;
 
             const nextId = STATE.ring[(idx + 1) % STATE.ring.length];
 
             if (STATE.currentNext !== nextId) {
-                logSys(`Apontando conexão para: ${nextId}`);
+                logSys(`Anel: Novo vizinho detectado -> ${nextId}`);
                 STATE.currentNext = nextId;
-                // Polite Peer: O ID alfabeticamente maior inicia a oferta para evitar conflitos
+                // Polite Peer: O ID maior inicia o handshake para evitar colisão de SDP
                 if (STATE.id > nextId) initWebRTC(nextId);
             }
         }
@@ -502,7 +528,9 @@
             const dc = pc.createDataChannel("ring-data");
             setupDC(dc, targetId);
 
-            if (STATE.localStream) STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+            if (STATE.localStream) {
+                STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+            }
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -511,7 +539,9 @@
 
         async function handleOffer(data) {
             const pc = createPC(data.from);
-            if (STATE.localStream) STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+            if (STATE.localStream) {
+                STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+            }
             await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
@@ -528,11 +558,14 @@
 
             pc.ontrack = e => {
                 addVideo(peerId, `Peer: ${peerId}`, e.streams[0]);
-                // RELAY DE MÍDIA PEER-TO-PEER
+                // RELAY DE MÍDIA PEER-TO-PEER (O anel repassa a mídia)
                 if (STATE.currentNext && STATE.currentNext !== peerId) {
                     const nextPC = STATE.peers[STATE.currentNext];
                     if (nextPC && nextPC.signalingState === 'stable') {
-                        try { nextPC.addTrack(e.track, e.streams[0]); applyQuality(nextPC); } catch (err) { }
+                        try {
+                            nextPC.addTrack(e.track, e.streams[0]);
+                            applyAdaptiveQuality(nextPC);
+                        } catch (err) { }
                     }
                 }
             };
@@ -540,17 +573,16 @@
             pc.onconnectionstatechange = () => {
                 const tag = document.getElementById('ring-status');
                 if (pc.connectionState === 'connected') {
-                    tag.innerText = "CONECTADO"; tag.style.color = "var(--success)";
-                    logSys(`Link estabelecido com ${peerId}`);
+                    tag.innerText = "RING: CLOSED"; tag.style.color = "var(--success)";
                 } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-                    tag.innerText = "OFFLINE"; tag.style.color = "var(--danger)";
+                    tag.innerText = "RING: OPEN"; tag.style.color = "var(--danger)";
                     healRing(peerId);
                 }
             };
             return pc;
         }
 
-        // --- RELAY DE DADOS E CHAT ---
+        // --- DATA CHANNEL / RELAY DE DADOS ---
         function setupDC(dc, peerId) {
             STATE.channels[peerId] = dc;
             dc.onmessage = e => {
@@ -558,7 +590,7 @@
                 if (STATE.seen.has(data.uid)) return;
                 STATE.seen.add(data.uid);
                 appendMsg(data);
-                relayData(data); // Repassa para o próximo no anel
+                relayData(data); // Relay P2P de dados
             };
         }
 
@@ -576,7 +608,7 @@
             relayData(data);
         }
 
-        // --- UI / MULTIMÍDIA ---
+        // --- MULTIMÍDIA E UI ---
         function sendChat() {
             const el = document.getElementById('msg-input');
             if (!el.value) return;
@@ -585,7 +617,7 @@
         }
 
         document.getElementById('msg-input').onpaste = (e) => {
-            const items = e.clipboardData.items;
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (let item of items) {
                 if (item.type.indexOf("image") !== -1) {
                     const reader = new FileReader();
@@ -598,7 +630,7 @@
         function sendFile(input) {
             const file = input.files[0];
             if (!file) return;
-            if (file.size > 2 * 1024 * 1024) return alert("Máximo 2MB");
+            if (file.size > 3 * 1024 * 1024) return alert("Limite de 3MB para protótipo P2P.");
             const reader = new FileReader();
             reader.onload = (e) => broadcast('file', { data: e.target.result, name: file.name });
             reader.readAsDataURL(file);
@@ -608,12 +640,12 @@
             const area = document.getElementById('chat-list');
             const div = document.createElement('div');
             div.className = 'm-item';
-            let html = `<b>${msg.sender}:</b> `;
-            if (msg.type === 'chat') html += `<span>${msg.text}</span>`;
-            if (msg.type === 'img') html += `<img src="${msg.data}">`;
-            if (msg.type === 'file') html += `<br><a href="${msg.data}" download="${msg.name}" style="color:var(--success); font-weight:bold; text-decoration:none;">📁 Baixar: ${msg.name}</a>`;
-            div.innerHTML = html;
+            let content = `<b>${msg.sender}:</b> `;
+            if (msg.type === 'chat') content += `<span>${msg.text}</span>`;
+            if (msg.type === 'img') content += `<img src="${msg.data}">`;
+            if (msg.type === 'file') content += `<br><a href="${msg.data}" download="${msg.name}" style="color:var(--success); font-weight:bold;">📁 Baixar: ${msg.name}</a>`;
             area.appendChild(div);
+            div.innerHTML = content;
             area.scrollTop = area.scrollHeight;
         }
 
@@ -627,14 +659,21 @@
             div.querySelector('video').srcObject = stream;
         }
 
-        function applyQuality(pc) {
-            const hops = STATE.ring.length;
-            let fps = hops > 4 ? 5 : 15; // Degradação progressiva
+        // --- QUALIDADE ADAPTATIVA (PROGRESSIVA) ---
+        function applyAdaptiveQuality(pc) {
+            const members = STATE.ring.length;
+            let targetFPS = 30;
+            let scale = 1;
+
+            if (members > 3) { targetFPS = 15; scale = 2; }
+            if (members > 6) { targetFPS = 5; scale = 4; }
+
             pc.getSenders().forEach(s => {
                 if (s.track && s.track.kind === 'video') {
                     const p = s.getParameters();
                     if (!p.encodings) p.encodings = [{}];
-                    p.encodings[0].maxFramerate = fps;
+                    p.encodings[0].maxFramerate = targetFPS;
+                    p.encodings[0].scaleResolutionDownBy = scale;
                     s.setParameters(p).catch(() => { });
                 }
             });
@@ -644,25 +683,23 @@
             STATE.ring = STATE.ring.filter(id => id !== failedId);
             const v = document.getElementById(`v-${failedId}`);
             if (v) v.remove();
-            recalculateRing();
+            recalculateNeighbors();
+            logSys(`Self-Healing: Nó ${failedId} removido. Reconfigurando anel...`);
         }
 
-        function refreshRing() {
-            if (STATE.mqtt) STATE.mqtt.publish(`p2p_science_vfinal_fix_${STATE.room}/announce`, JSON.stringify({ type: 'JOIN', id: STATE.id }));
+        function heartbeat() {
+            if (STATE.mqtt) STATE.mqtt.publish(`p2p_v_final_full_${STATE.room}/announce`, JSON.stringify({ type: 'JOIN', id: STATE.id }));
         }
 
         function sendSignal(to, payload) {
             payload.from = STATE.id;
-            STATE.mqtt.publish(`p2p_science_vfinal_fix_${STATE.room}/direct/${to}`, JSON.stringify(payload));
+            STATE.mqtt.publish(`p2p_v_final_full_${STATE.room}/direct/${to}`, JSON.stringify(payload));
         }
 
         function toggleMute(type) {
             if (!STATE.localStream) return;
             const t = type === 'audio' ? STATE.localStream.getAudioTracks()[0] : STATE.localStream.getVideoTracks()[0];
-            if (t) {
-                t.enabled = !t.enabled;
-                logSys(`${type.toUpperCase()} ${t.enabled ? 'Ativado' : 'Desativado'}`);
-            }
+            if (t) t.enabled = !t.enabled;
         }
 
         async function shareScreen() {
@@ -680,7 +717,7 @@
                         if (sender) sender.replaceTrack(cam);
                     });
                 };
-            } catch (e) { logSys("Falha ao compartilhar tela."); }
+            } catch (e) { logSys("Erro ao capturar tela."); }
         }
     </script>
 </body>
